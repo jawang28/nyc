@@ -1,0 +1,768 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#0C0C0D">
+<title>NYC Navigator</title>
+<link href="https://cdnjs.cloudflare.com/ajax/libs/maplibre-gl/4.7.1/maplibre-gl.min.css" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/maplibre-gl/4.7.1/maplibre-gl.min.js"></script>
+<style>
+:root{
+  --ink:#0C0C0D; --steel:#1B1E22; --slate:#31363D;
+  --chalk:#FFFFFF; --led:#FFB000; --mute:#8A9099;
+  --hair:rgba(255,255,255,.10); --sheet-h:52vh;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;height:100%;overflow:hidden;
+  font-family:"Helvetica Neue",Helvetica,Arial,"Liberation Sans",sans-serif;
+  background:var(--ink);color:var(--chalk);-webkit-font-smoothing:antialiased}
+button,input{font-family:inherit;font-size:16px}
+a{color:var(--led)}
+
+/* ── LOCK SCREEN ── */
+#lock{position:fixed;inset:0;z-index:100;background:var(--ink);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  padding:26px;text-align:center}
+#lock .disc{width:78px;height:78px;border-radius:50%;background:var(--led);
+  color:#000;display:flex;align-items:center;justify-content:center;
+  font-size:34px;font-weight:700;letter-spacing:-.05em;margin-bottom:22px}
+#lock h1{font-size:25px;font-weight:700;letter-spacing:-.035em;margin:0 0 6px}
+#lock p{font-size:13px;color:var(--mute);margin:0 0 26px;line-height:1.5;max-width:280px}
+#pw{width:100%;max-width:280px;background:var(--steel);border:1px solid var(--hair);
+  border-radius:10px;padding:15px;color:var(--chalk);text-align:center;
+  letter-spacing:.28em;outline:none;margin-bottom:10px}
+#pw:focus{border-color:var(--led)}
+#lock button{width:100%;max-width:280px;background:var(--led);color:#000;border:0;
+  border-radius:10px;padding:15px;font-weight:700;font-size:13px;
+  letter-spacing:.12em;text-transform:uppercase}
+#pwerr{color:#EE352E;font-size:12px;height:16px;margin-top:11px}
+
+#app{display:none;height:100%}
+#map{position:absolute;inset:0}
+.maplibregl-ctrl-attrib{font-size:9px !important;opacity:.5}
+.maplibregl-ctrl-bottom-left{display:none}
+
+/* ── SEARCH ── */
+#topbar{position:absolute;top:0;left:0;right:0;z-index:20;
+  padding:calc(env(safe-area-inset-top) + 10px) 10px 10px;
+  background:linear-gradient(180deg,rgba(12,12,13,.94) 55%,rgba(12,12,13,0))}
+.searchwrap{display:flex;gap:9px;align-items:center;background:var(--steel);
+  border:1px solid var(--hair);border-radius:10px;padding:0 12px;height:48px}
+.searchwrap svg{flex:0 0 auto;opacity:.45}
+#q{flex:1;background:none;border:0;color:var(--chalk);outline:none;
+  padding:0;letter-spacing:-.01em;min-width:0}
+#q::placeholder{color:var(--mute)}
+#qclear{background:none;border:0;color:var(--mute);font-size:23px;line-height:1;
+  padding:0 2px;display:none}
+#results{margin-top:8px;background:var(--steel);border:1px solid var(--hair);
+  border-radius:10px;overflow:hidden;display:none;max-height:44vh;overflow-y:auto}
+.res{padding:12px 14px;border-bottom:1px solid var(--hair)}
+.res:last-child{border-bottom:0}
+.res b{display:block;font-size:15px;font-weight:600;letter-spacing:-.01em}
+.res span{display:block;font-size:12px;color:var(--mute);margin-top:2px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+/* ── SHEET ── */
+#sheet{position:absolute;left:0;right:0;bottom:0;z-index:30;height:var(--sheet-h);
+  background:var(--ink);border-top:1px solid var(--hair);border-radius:16px 16px 0 0;
+  display:flex;flex-direction:column;box-shadow:0 -18px 40px rgba(0,0,0,.55);
+  transition:height .28s cubic-bezier(.32,.72,0,1)}
+#sheet.big{height:88vh}
+#sheet.small{height:118px}
+#grab{padding:9px 0 5px;display:flex;justify-content:center;flex:0 0 auto;touch-action:none}
+#grab i{display:block;width:38px;height:4px;border-radius:2px;background:#4A5058}
+#tabs{display:flex;padding:2px 12px 0;flex:0 0 auto;border-bottom:1px solid var(--hair)}
+.tab{flex:1;background:none;border:0;color:var(--mute);padding:11px 0 12px;
+  font-size:11px;font-weight:700;letter-spacing:.13em;text-transform:uppercase;
+  border-bottom:2px solid transparent;margin-bottom:-1px}
+.tab.on{color:var(--chalk);border-bottom-color:var(--led)}
+#body{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;
+  padding:0 0 calc(env(safe-area-inset-bottom) + 22px)}
+.pane{display:none;padding:14px 14px 0}
+.pane.on{display:block}
+
+/* ── COUNTDOWN CLOCK ── */
+.clock{background:#000;border:1px solid #2A2A2A;border-radius:8px;
+  padding:10px 12px 11px;margin-bottom:11px}
+.clock .stn{display:flex;justify-content:space-between;align-items:baseline;
+  gap:8px;margin-bottom:9px}
+.clock .stn b{font-size:15px;font-weight:700;letter-spacing:-.015em}
+.clock .stn em{font-style:normal;font-size:10px;color:var(--mute);
+  letter-spacing:.08em;text-transform:uppercase;white-space:nowrap}
+.row{display:flex;align-items:center;gap:9px;padding:5px 0;
+  font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace}
+.row .dir{width:30px;font-size:9px;color:#6E7076;letter-spacing:.05em;flex:0 0 auto}
+.row .mins{margin-left:auto;color:var(--led);font-size:15px;font-weight:600;
+  font-variant-numeric:tabular-nums;letter-spacing:-.02em;
+  text-shadow:0 0 9px rgba(255,176,0,.35)}
+.row .mins small{font-size:10px;opacity:.6;margin-left:2px}
+.blt{width:23px;height:23px;border-radius:50%;flex:0 0 auto;display:inline-flex;
+  align-items:center;justify-content:center;font-size:12px;font-weight:700;
+  color:#fff;letter-spacing:-.03em}
+.blt.dark{color:#000}
+.blt.sm{width:18px;height:18px;font-size:10px}
+
+/* ── HOTEL CARD ── */
+.hotel{background:linear-gradient(150deg,#14304A,#101418);
+  border:1px solid #21486B;border-radius:11px;
+  padding:14px;margin-bottom:12px}
+.hotel .top{display:flex;align-items:center;gap:10px;margin-bottom:9px}
+.hotel .top span{font-size:21px}
+.hotel .top b{font-size:15px;font-weight:700;letter-spacing:-.02em;line-height:1.25}
+.hotel .addr{font-size:12px;color:#9FB4C7;line-height:1.5;margin-bottom:12px}
+.hotel .acts{display:flex;gap:8px}
+.hotel .acts a,.hotel .acts button{flex:1;text-decoration:none;background:rgba(255,255,255,.08);
+  border:1px solid rgba(255,255,255,.14);color:var(--chalk);border-radius:8px;
+  padding:10px 4px;font-size:11px;font-weight:700;letter-spacing:.07em;
+  text-transform:uppercase;text-align:center;display:block}
+.hotel .acts .go{background:var(--led);color:#000;border-color:var(--led)}
+
+/* ── TRIP ── */
+.seg{display:flex;background:var(--steel);border:1px solid var(--hair);
+  border-radius:9px;padding:3px;margin-bottom:9px;gap:3px}
+.seg button{flex:1;background:none;border:0;color:var(--mute);border-radius:7px;
+  padding:9px 4px;font-size:11px;font-weight:700;letter-spacing:.07em;text-transform:uppercase}
+.seg button.on{background:var(--slate);color:var(--chalk)}
+.field{display:flex;align-items:center;gap:10px;background:var(--steel);
+  border:1px solid var(--hair);border-radius:9px;padding:11px 13px;margin-bottom:8px}
+.field .pip{width:9px;height:9px;border-radius:50%;flex:0 0 auto}
+.field .txt{flex:1;min-width:0;font-size:14px;overflow:hidden;
+  text-overflow:ellipsis;white-space:nowrap}
+.field .txt.empty{color:var(--mute)}
+.field button{background:none;border:0;color:var(--led);font-size:11px;
+  font-weight:700;letter-spacing:.09em;text-transform:uppercase;padding:0;flex:0 0 auto}
+.mode{display:flex;align-items:center;gap:12px;background:var(--steel);
+  border:1px solid var(--hair);border-left:3px solid var(--slate);
+  border-radius:9px;padding:13px 14px;margin-bottom:8px}
+.mode .ico{font-size:21px;width:26px;text-align:center;flex:0 0 auto}
+.mode .meta{flex:1;min-width:0}
+.mode .meta b{display:block;font-size:15px;font-weight:600;letter-spacing:-.01em}
+.mode .meta span{display:block;font-size:12px;color:var(--mute);margin-top:2px}
+.mode .num{text-align:right;flex:0 0 auto}
+.mode .num b{display:block;font-size:19px;font-weight:700;letter-spacing:-.03em;
+  font-variant-numeric:tabular-nums}
+.mode .num span{display:block;font-size:11px;color:var(--mute);margin-top:1px}
+.mode.walk{border-left-color:#6CBE45}
+.mode.bike{border-left-color:#00933C}
+.mode.train{border-left-color:#0039A6}
+.mode.taxi{border-left-color:#FCCC0A}
+
+.hint{font-size:11px;color:var(--mute);line-height:1.55;padding:2px 2px 16px}
+.err{background:#2A1618;border:1px solid #55282C;border-radius:9px;
+  padding:12px 13px;font-size:13px;line-height:1.45;margin-bottom:10px}
+.err b{display:block;margin-bottom:3px}
+.load{padding:22px 4px;color:var(--mute);font-size:13px;text-align:center}
+.btn{width:100%;background:var(--led);color:#000;border:0;border-radius:9px;
+  padding:14px;font-size:13px;font-weight:700;letter-spacing:.09em;
+  text-transform:uppercase;margin-bottom:8px}
+.btn.ghost{background:none;color:var(--chalk);border:1px solid var(--hair)}
+.saved{display:flex;align-items:center;gap:11px;background:var(--steel);
+  border:1px solid var(--hair);border-radius:9px;padding:12px 13px;margin-bottom:8px}
+.saved .ico{font-size:19px;flex:0 0 auto}
+.saved .meta{flex:1;min-width:0}
+.saved .meta b{display:block;font-size:14px;font-weight:600}
+.saved .meta span{display:block;font-size:11px;color:var(--mute);margin-top:2px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.saved .x{background:none;border:0;color:var(--mute);font-size:19px;padding:0 3px}
+.eyebrow{font-size:10px;font-weight:700;letter-spacing:.15em;text-transform:uppercase;
+  color:var(--mute);padding:6px 2px 9px}
+
+#locate{position:absolute;right:12px;bottom:calc(var(--sheet-h) + 12px);z-index:25;
+  width:44px;height:44px;border-radius:50%;background:var(--steel);
+  border:1px solid var(--hair);color:var(--chalk);font-size:19px;
+  box-shadow:0 4px 14px rgba(0,0,0,.5);transition:bottom .28s cubic-bezier(.32,.72,0,1)}
+#sheet.big ~ #locate{bottom:calc(88vh + 12px)}
+#sheet.small ~ #locate{bottom:130px}
+
+.mk{width:26px;height:26px;border-radius:50%;border:2px solid #fff;
+  box-shadow:0 2px 7px rgba(0,0,0,.5);display:flex;align-items:center;
+  justify-content:center;font-size:13px;background:var(--led)}
+.mk.stn{background:#0C0C0D;font-size:9px;font-weight:700;color:#fff;
+  width:22px;height:22px;border-width:1.5px}
+.mk.me{background:#2196F3;width:16px;height:16px;
+  box-shadow:0 0 0 5px rgba(33,150,243,.24),0 2px 6px rgba(0,0,0,.5)}
+.mk.dest{background:#EE352E}
+.mk.hotel{background:#1565C0;font-size:14px}
+@media(prefers-reduced-motion:reduce){*{transition:none !important}}
+</style>
+</head>
+<body>
+
+<div id="lock">
+  <div class="disc">N</div>
+  <h1>NYC Navigator</h1>
+  <p>Enter the code to open the map.</p>
+  <input id="pw" type="password" inputmode="text" placeholder="• • • • • •" autocomplete="off" enterkeyhint="go">
+  <button id="pwgo">Unlock</button>
+  <div id="pwerr"></div>
+</div>
+
+<div id="app">
+  <div id="map"></div>
+
+  <div id="topbar">
+    <div class="searchwrap">
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4">
+        <circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg>
+      <input id="q" placeholder="Search a place, address or station" autocomplete="off" enterkeyhint="search">
+      <button id="qclear">&times;</button>
+    </div>
+    <div id="results"></div>
+  </div>
+
+  <div id="sheet">
+    <div id="grab"><i></i></div>
+    <div id="tabs">
+      <button class="tab on" data-p="near">Nearby</button>
+      <button class="tab" data-p="trip">Trip</button>
+      <button class="tab" data-p="save">Places</button>
+    </div>
+    <div id="body">
+      <div class="pane on" id="p-near"><div class="load">Finding you…</div></div>
+      <div class="pane" id="p-trip"></div>
+      <div class="pane" id="p-save"></div>
+    </div>
+  </div>
+
+  <button id="locate">◎</button>
+</div>
+
+<script>
+/* ════════════════════════════════════════════════════
+   NYC NAVIGATOR — DoubleTree Downtown edition
+   ════════════════════════════════════════════════════ */
+
+/* ── CHANGE THE PASSWORD HERE ── */
+const PASSWORD = 'stone8';
+
+/* ── HOME BASE ── */
+const HOTEL = {
+  name:'DoubleTree by Hilton New York Downtown',
+  short:'The hotel',
+  lat:40.703921, lng:-74.0123541,
+  addr:'8 Stone Street, New York, NY 10004',
+  phone:'+12124809100',
+  checkIn:'Sat Aug 1 · 4:00 PM',
+  checkOut:'Wed Aug 5 · 11:00 AM'
+};
+
+const MTA_LINES = {
+  '1':'#EE352E','2':'#EE352E','3':'#EE352E',
+  '4':'#00933C','5':'#00933C','5X':'#00933C','6':'#00933C','6X':'#00933C',
+  '7':'#B933AD','7X':'#B933AD',
+  'A':'#0039A6','C':'#0039A6','E':'#0039A6',
+  'B':'#FF6319','D':'#FF6319','F':'#FF6319','FX':'#FF6319','M':'#FF6319',
+  'G':'#6CBE45','J':'#996633','Z':'#996633','L':'#A7A9AC',
+  'N':'#FCCC0A','Q':'#FCCC0A','R':'#FCCC0A','W':'#FCCC0A',
+  'S':'#808183','H':'#808183','FS':'#808183','GS':'#808183','SI':'#0039A6','SIR':'#0039A6'
+};
+const DARKTEXT = ['N','Q','R','W'];
+
+const S = {
+  me:null, dest:null, destName:'', origin:'me',
+  stations:[], saved:[], markers:[], meMarker:null, destMarker:null,
+  trip:null, tab:'near', planning:false
+};
+
+/* ══ LOCK ══ */
+const lockEl = document.getElementById('lock');
+const pwEl = document.getElementById('pw');
+function tryUnlock(){
+  if(pwEl.value.trim().toLowerCase() === PASSWORD.toLowerCase()){
+    try{ sessionStorage.setItem('nycnav:ok','1'); }catch(e){}
+    lockEl.style.display='none';
+    document.getElementById('app').style.display='block';
+    boot();
+  } else {
+    document.getElementById('pwerr').textContent = 'Wrong code — try again';
+    pwEl.value=''; pwEl.focus();
+  }
+}
+document.getElementById('pwgo').onclick = tryUnlock;
+pwEl.addEventListener('keydown', e=>{ if(e.key==='Enter') tryUnlock(); });
+try{ if(sessionStorage.getItem('nycnav:ok')==='1'){
+  lockEl.style.display='none'; document.getElementById('app').style.display='block';
+  addEventListener('DOMContentLoaded', boot); setTimeout(boot,0);
+} }catch(e){}
+
+/* ══ MAP ══ */
+let map, mapOK=false, booted=false;
+
+function initMap(){
+  try{
+    map = new maplibregl.Map({
+      container:'map',
+      style:'https://tiles.openfreemap.org/styles/liberty',
+      center:[HOTEL.lng,HOTEL.lat], zoom:14.2,
+      attributionControl:{compact:true}
+    });
+    map.on('load', onMapReady);
+    map.on('error', e=>{ if(!mapOK) fallbackTiles(); });
+    setTimeout(()=>{ if(!mapOK) fallbackTiles(); }, 8000);
+  }catch(e){ console.warn(e); }
+}
+function fallbackTiles(){
+  if(mapOK || !map) return;
+  try{
+    map.setStyle({version:8, sources:{osm:{type:'raster',
+      tiles:['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
+      tileSize:256, attribution:'© OpenStreetMap contributors'}},
+      layers:[{id:'osm',type:'raster',source:'osm'}]});
+    map.once('styledata', onMapReady);
+  }catch(e){}
+}
+function onMapReady(){
+  if(mapOK) return;
+  mapOK = true;
+  addRouteLayer();
+  marker(HOTEL.lng, HOTEL.lat, 'hotel', '🏨');
+  map.on('click', e=>{
+    if(S.planning) return;
+    pickDest(e.lngLat.lat, e.lngLat.lng, 'Dropped pin');
+  });
+  if(S.me && !S.meMarker) S.meMarker = marker(S.me.lng, S.me.lat, 'me');
+  if(S.stations.length) plotStations();
+}
+function addRouteLayer(){
+  if(map.getSource('trip')) return;
+  map.addSource('trip',{type:'geojson',data:{type:'FeatureCollection',features:[]}});
+  map.addLayer({id:'trip-glow',type:'line',source:'trip',
+    layout:{'line-cap':'round','line-join':'round'},
+    paint:{'line-color':'#FFB000','line-width':10,'line-opacity':.18,'line-blur':4}});
+  map.addLayer({id:'trip-line',type:'line',source:'trip',
+    layout:{'line-cap':'round','line-join':'round'},
+    paint:{'line-color':'#FFB000','line-width':4}});
+}
+function drawRoute(gj){
+  if(!mapOK) return;
+  addRouteLayer();
+  map.getSource('trip').setData(gj || {type:'FeatureCollection',features:[]});
+}
+function marker(lng,lat,cls,txt){
+  const el=document.createElement('div');
+  el.className='mk '+cls; if(txt) el.textContent=txt;
+  return new maplibregl.Marker({element:el}).setLngLat([lng,lat]).addTo(map);
+}
+function clearStationMarkers(){ S.markers.forEach(m=>m.remove()); S.markers=[]; }
+
+/* ══ STORAGE ══ */
+async function loadSaved(){
+  try{
+    const r = await window.storage.get('nycnav:places');
+    S.saved = r ? JSON.parse(r.value) : [];
+  }catch(e){
+    try{ S.saved = JSON.parse(localStorage.getItem('nycnav:places')||'[]'); }
+    catch(e2){ S.saved = []; }
+  }
+  renderSaved();
+}
+async function persist(){
+  const v = JSON.stringify(S.saved);
+  try{ await window.storage.set('nycnav:places', v); }
+  catch(e){ try{ localStorage.setItem('nycnav:places', v); }catch(e2){} }
+}
+
+/* ══ LOCATION ══ */
+function locate(){
+  if(!navigator.geolocation){
+    nearErr('Location not available','Use Trip and switch the start to the hotel — everything still works.');
+    return;
+  }
+  navigator.geolocation.watchPosition(p=>{
+    const first = !S.me;
+    S.me = {lat:p.coords.latitude, lng:p.coords.longitude};
+    if(S.meMarker) S.meMarker.setLngLat([S.me.lng,S.me.lat]);
+    else if(mapOK) S.meMarker = marker(S.me.lng,S.me.lat,'me');
+    if(first){
+      if(mapOK) map.easeTo({center:[S.me.lng,S.me.lat], zoom:15.2});
+      fetchNearby();
+      if(S.dest) planTrip();
+    }
+  }, err=>{
+    nearErr(err.code===1 ? 'Location is blocked' : 'No GPS fix',
+      err.code===1
+        ? 'Allow location for this site in your browser settings, then tap ◎. Meanwhile, Trip works with the hotel as your start.'
+        : 'Common right after coming up from the subway. Tap ◎ to retry.');
+  }, {enableHighAccuracy:true, timeout:12000, maximumAge:20000});
+}
+window.locate = locate;
+
+function startPoint(){
+  return S.origin==='hotel' ? {lat:HOTEL.lat, lng:HOTEL.lng, label:HOTEL.short} :
+         (S.me ? {lat:S.me.lat, lng:S.me.lng, label:'Your location'} : null);
+}
+
+/* ══ LIVE ARRIVALS ══ */
+async function fetchNearby(){
+  const at = S.me || {lat:HOTEL.lat, lng:HOTEL.lng};
+  const p = document.getElementById('p-near');
+  if(!S.stations.length) p.innerHTML = hotelCard() + '<div class="load">Reading the countdown clocks…</div>';
+  try{
+    const r = await fetch(`https://api.wheresthefuckingtrain.com/by-location?lat=${at.lat}&lon=${at.lng}`);
+    if(!r.ok) throw new Error(r.status);
+    const j = await r.json();
+    S.stations = j.data || [];
+    renderNearby(at);
+    plotStations();
+  }catch(e){
+    nearErr('Live arrivals unavailable',
+      'The MTA feed didn\'t answer. Tap ◎ to retry — the map, trip times and fares all still work.');
+  }
+}
+function nearErr(t,m){
+  document.getElementById('p-near').innerHTML = hotelCard() +
+    `<div class="err"><b>${t}</b>${m}</div>
+     <button class="btn ghost" onclick="locate();fetchNearby()">Try again</button>`;
+}
+function bullet(route, sm){
+  const c = MTA_LINES[route] || '#5A5F66';
+  const d = DARKTEXT.includes(route) ? ' dark' : '';
+  return `<span class="blt${d}${sm?' sm':''}" style="background:${c}">${route}</span>`;
+}
+function minsUntil(iso){
+  const d = (new Date(iso) - Date.now())/60000;
+  return d < 0.5 ? {n:'Now',u:''} : {n:String(Math.round(d)),u:'min'};
+}
+function hotelCard(){
+  const gmaps = `https://www.google.com/maps/dir/?api=1&destination=${HOTEL.lat},${HOTEL.lng}`;
+  return `<div class="hotel">
+    <div class="top"><span>🏨</span><b>${HOTEL.name}</b></div>
+    <div class="addr">${HOTEL.addr}<br>Check-in ${HOTEL.checkIn} · Out ${HOTEL.checkOut}</div>
+    <div class="acts">
+      <button class="go" onclick="goHotel()">Take me back</button>
+      <a href="tel:${HOTEL.phone}">Call</a>
+      <a href="${gmaps}" target="_blank" rel="noopener">Maps</a>
+    </div></div>`;
+}
+function goHotel(){ pickDest(HOTEL.lat, HOTEL.lng, HOTEL.short); }
+window.goHotel = goHotel;
+
+function renderNearby(at){
+  const p = document.getElementById('p-near');
+  let h = hotelCard();
+  if(!S.stations.length){
+    p.innerHTML = h + `<div class="hint">No subway stations found nearby.</div>`; return;
+  }
+  S.stations.slice(0,5).forEach(st=>{
+    const d = dist(at.lat,at.lng,st.location[0],st.location[1]);
+    const walk = Math.max(1, Math.round(d*1.32/3.1*60));
+    h += `<div class="clock"><div class="stn"><b>${st.name}</b><em>${walk} min walk</em></div>`;
+    let any=false;
+    [['N','NORTH'],['S','SOUTH']].forEach(([dir,label])=>{
+      (st[dir]||[]).slice(0,3).forEach(t=>{
+        const m = minsUntil(t.time); any=true;
+        h += `<div class="row"><span class="dir">${label}</span>${bullet(t.route)}
+              <span class="mins">${m.n}<small>${m.u}</small></span></div>`;
+      });
+    });
+    if(!any) h += `<div class="row"><span class="mins" style="color:#6E7076;font-size:12px">No trains listed</span></div>`;
+    h += `</div>`;
+  });
+  h += `<div class="hint">Live MTA data, refreshing every 45 seconds. You'll have signal on the platform but usually not between stations — if the times freeze mid-tunnel, that's normal.</div>`;
+  p.innerHTML = h;
+}
+function plotStations(){
+  if(!mapOK) return;
+  clearStationMarkers();
+  S.stations.slice(0,5).forEach(st=>{
+    S.markers.push(marker(st.location[1], st.location[0], 'stn', 'M'));
+  });
+}
+
+/* ══ SEARCH ══ */
+const qEl=document.getElementById('q'), resEl=document.getElementById('results'),
+      clrEl=document.getElementById('qclear');
+let qt;
+qEl.addEventListener('input',()=>{
+  clrEl.style.display = qEl.value ? 'block':'none';
+  clearTimeout(qt);
+  if(qEl.value.trim().length<3){ resEl.style.display='none'; return; }
+  qt = setTimeout(search, 430);
+});
+clrEl.onclick=()=>{ qEl.value=''; clrEl.style.display='none'; resEl.style.display='none'; };
+
+async function search(){
+  const q = qEl.value.trim();
+  resEl.innerHTML='<div class="res"><b>Searching…</b></div>'; resEl.style.display='block';
+  try{
+    const url='https://nominatim.openstreetmap.org/search?format=json&limit=6&bounded=1'
+      +'&viewbox=-74.30,40.92,-73.68,40.48&q='+encodeURIComponent(q);
+    const r = await fetch(url,{headers:{'Accept':'application/json'}});
+    const j = await r.json();
+    if(!j.length){
+      resEl.innerHTML='<div class="res"><b>Nothing found</b><span>Try adding the borough — "Joe\'s Pizza Brooklyn"</span></div>';
+      return;
+    }
+    resEl.innerHTML = j.map((x,i)=>{
+      const parts = x.display_name.split(',');
+      return `<div class="res" data-i="${i}"><b>${parts[0]}</b>
+              <span>${parts.slice(1,4).join(',').trim()}</span></div>`;
+    }).join('');
+    resEl.querySelectorAll('.res').forEach(el=>{
+      el.onclick=()=>{ const x=j[+el.dataset.i];
+        pickDest(+x.lat,+x.lon, x.display_name.split(',')[0]); };
+    });
+  }catch(e){
+    resEl.innerHTML='<div class="res"><b>Search is down</b><span>Tap a spot on the map instead</span></div>';
+  }
+}
+
+function pickDest(lat,lng,name){
+  S.dest={lat,lng}; S.destName=name||'Dropped pin';
+  resEl.style.display='none'; qEl.value=''; clrEl.style.display='none'; qEl.blur();
+  if(S.destMarker) S.destMarker.setLngLat([lng,lat]);
+  else if(mapOK) S.destMarker = marker(lng,lat,'dest','●');
+  setTab('trip'); sheet('big'); planTrip();
+}
+
+/* ══ GEOMETRY + FARE ══ */
+function dist(a,b,c,d){
+  const R=3958.8, r=Math.PI/180, dLat=(c-a)*r, dLon=(d-b)*r;
+  const h=Math.sin(dLat/2)**2+Math.cos(a*r)*Math.cos(c*r)*Math.sin(dLon/2)**2;
+  return 2*R*Math.asin(Math.sqrt(h));
+}
+const below60 = p => p.lat < 40.7648;
+const below96 = p => p.lat < 40.7860;
+
+function taxiFare(miles, mins, from, to){
+  let f = 3.00;
+  f += Math.ceil(miles*5)*0.70;
+  f += Math.max(0, mins - miles*3)*0.70;
+  f += 0.50 + 1.00;
+  const now=new Date(), hr=now.getHours(), wd=now.getDay()>0&&now.getDay()<6;
+  const notes=[];
+  if(hr>=20||hr<6){ f+=1.00; notes.push('overnight'); }
+  if(wd&&hr>=16&&hr<20){ f+=2.50; notes.push('rush hour'); }
+  if(below96(from)||below96(to)){ f+=2.50; notes.push('congestion'); }
+  if(below60(from)||below60(to)) f+=0.75;
+  return {fare:f, notes};
+}
+const fmtMin = s => s<60 ? '<1' : String(Math.round(s/60));
+
+/* ══ ROUTING ══ */
+async function valhalla(from,to,costing){
+  const body={locations:[{lat:from.lat,lon:from.lng},{lat:to.lat,lon:to.lng}],
+    costing, directions_options:{units:'miles'}};
+  const ctrl = new AbortController();
+  const timer = setTimeout(()=>ctrl.abort(), 9000);
+  try{
+    const r = await fetch('https://valhalla1.openstreetmap.de/route?json='
+      + encodeURIComponent(JSON.stringify(body)), {signal:ctrl.signal});
+    if(!r.ok) throw new Error(r.status);
+    const j = await r.json();
+    if(!j.trip || !j.trip.summary) throw new Error('no trip');
+    return {sec:j.trip.summary.time, mi:j.trip.summary.length,
+            shape:(j.trip.legs||[]).map(l=>l.shape).filter(Boolean)};
+  } finally { clearTimeout(timer); }
+}
+function estimate(from,to,mph){
+  const mi = dist(from.lat,from.lng,to.lat,to.lng)*1.32;
+  return {sec:mi/mph*3600, mi, shape:null, guess:true};
+}
+function decodePoly(str,precision){
+  let i=0,lat=0,lng=0,out=[],shift,result,byte,f=Math.pow(10,precision||6);
+  while(i<str.length){
+    shift=0;result=0;
+    do{byte=str.charCodeAt(i++)-63;result|=(byte&0x1f)<<shift;shift+=5;}while(byte>=0x20);
+    lat+=(result&1)?~(result>>1):(result>>1);
+    shift=0;result=0;
+    do{byte=str.charCodeAt(i++)-63;result|=(byte&0x1f)<<shift;shift+=5;}while(byte>=0x20);
+    lng+=(result&1)?~(result>>1):(result>>1);
+    out.push([lng/f,lat/f]);
+  }
+  return out;
+}
+
+async function planTrip(){
+  const p=document.getElementById('p-trip');
+  if(!S.dest){ renderTripEmpty(); return; }
+  const from = startPoint();
+  if(!from){
+    p.innerHTML = tripHead() +
+      `<div class="err"><b>No start point yet</b>Turn on location and tap ◎, or switch the start above to the hotel.</div>`;
+    return;
+  }
+  S.planning = true;
+  p.innerHTML = tripHead() + '<div class="load">Working out your options…</div>';
+
+  const crow = dist(from.lat,from.lng,S.dest.lat,S.dest.lng);
+  const [walk,bike,car] = await Promise.all([
+    valhalla(from,S.dest,'pedestrian').catch(()=>estimate(from,S.dest,3.1)),
+    valhalla(from,S.dest,'bicycle').catch(()=>estimate(from,S.dest,9.5)),
+    valhalla(from,S.dest,'auto').catch(()=>estimate(from,S.dest,11))
+  ]);
+
+  let transit=null;
+  if(S.stations.length && crow > 0.55){
+    const st = S.stations[0];
+    const toStn = dist(from.lat,from.lng,st.location[0],st.location[1])*1.32/3.1*3600;
+    const nxt = [...(st.N||[]),...(st.S||[])]
+      .map(t=>({r:t.route,s:(new Date(t.time)-Date.now())/1000}))
+      .filter(t=>t.s>60).sort((a,b)=>a.s-b.s)[0];
+    const wait = nxt ? nxt.s : 300;
+    transit = {sec: toStn + wait + crow/17*3600 + 60 + 300,
+               station: st.name, route: nxt?nxt.r:null, waitMin: Math.round(wait/60)};
+  }
+
+  const fare = taxiFare(car.mi, car.sec/60, from, S.dest);
+  S.trip = {walk,bike,car,transit,fare,from};
+
+  if(walk.shape && walk.shape.length){
+    const coords = walk.shape.flatMap(s=>decodePoly(s,6));
+    if(coords.length){
+      drawRoute({type:'FeatureCollection',features:[
+        {type:'Feature',geometry:{type:'LineString',coordinates:coords},properties:{}}]});
+      if(mapOK) try{
+        const b = coords.reduce((bb,c)=>bb.extend(c),
+          new maplibregl.LngLatBounds(coords[0],coords[0]));
+        map.fitBounds(b,{padding:{top:120,bottom:Math.round(innerHeight*0.5),left:44,right:44}});
+      }catch(e){}
+    }
+  } else { drawRoute(null); }
+
+  S.planning = false;
+  renderTrip();
+}
+
+function tripHead(){
+  const from = startPoint();
+  return `
+  <div class="seg">
+    <button class="${S.origin==='me'?'on':''}" onclick="setOrigin('me')">From me</button>
+    <button class="${S.origin==='hotel'?'on':''}" onclick="setOrigin('hotel')">From hotel</button>
+  </div>
+  <div class="field"><span class="pip" style="background:${S.origin==='hotel'?'#1565C0':'#2196F3'}"></span>
+    <span class="txt ${from?'':'empty'}">${from?from.label:'Location off — tap Enable'}</span>
+    ${S.origin==='me'?`<button onclick="locate()">${S.me?'Update':'Enable'}</button>`:''}</div>
+  <div class="field"><span class="pip" style="background:#EE352E"></span>
+    <span class="txt ${S.dest?'':'empty'}">${S.dest?S.destName:'Pick a destination'}</span>
+    ${S.dest?'<button onclick="saveDest()">Save</button>':''}</div>`;
+}
+function setOrigin(o){ S.origin=o; if(S.dest) planTrip(); else renderTripEmpty(); }
+window.setOrigin = setOrigin;
+
+function renderTripEmpty(){
+  document.getElementById('p-trip').innerHTML = tripHead() +
+    `<button class="btn" onclick="goHotel()">Route me back to the hotel</button>
+     <div class="hint">Search a place up top, tap anywhere on the map, or pick a saved place — you'll get subway, walking, biking and taxi options with live times and real costs.</div>`;
+}
+
+function renderTrip(){
+  const t=S.trip, p=document.getElementById('p-trip');
+  let h = tripHead();
+  if(t.transit){
+    const b = t.transit.route ? bullet(t.transit.route,true) : '';
+    h += `<div class="mode train"><span class="ico">🚇</span><div class="meta">
+      <b>Subway ${b}</b><span>via ${t.transit.station} · next train ${t.transit.waitMin} min</span>
+      </div><div class="num"><b>${fmtMin(t.transit.sec)}</b><span>$3.00</span></div></div>`;
+  }
+  h += `<div class="mode walk"><span class="ico">🚶</span><div class="meta">
+    <b>Walk</b><span>${t.walk.mi.toFixed(1)} mi${t.walk.guess?' · estimated':''}</span>
+    </div><div class="num"><b>${fmtMin(t.walk.sec)}</b><span>free</span></div></div>`;
+  h += `<div class="mode bike"><span class="ico">🚲</span><div class="meta">
+    <b>Bike</b><span>${t.bike.mi.toFixed(1)} mi · Citi Bike or your own</span>
+    </div><div class="num"><b>${fmtMin(t.bike.sec)}</b><span>~$4.79</span></div></div>`;
+  h += `<div class="mode taxi"><span class="ico">🚕</span><div class="meta">
+    <b>Yellow cab</b><span>${t.fare.notes.length?t.fare.notes.join(' + ')+' added':'standard meter'} · before tip</span>
+    </div><div class="num"><b>${fmtMin(t.car.sec)}</b><span>$${t.fare.fare.toFixed(2)}</span></div></div>`;
+
+  const f=t.from;
+  const u=`https://m.uber.com/ul/?action=setPickup&pickup[latitude]=${f.lat}&pickup[longitude]=${f.lng}&dropoff[latitude]=${S.dest.lat}&dropoff[longitude]=${S.dest.lng}`;
+  const l=`https://lyft.com/ride?id=lyft&pickup[latitude]=${f.lat}&pickup[longitude]=${f.lng}&destination[latitude]=${S.dest.lat}&destination[longitude]=${S.dest.lng}`;
+  const g=`https://www.google.com/maps/dir/?api=1&origin=${f.lat},${f.lng}&destination=${S.dest.lat},${S.dest.lng}&travelmode=transit`;
+  h += `<div class="eyebrow">Open elsewhere</div>
+    <div style="display:flex;gap:8px;margin-bottom:12px">
+      <a href="${u}" target="_blank" rel="noopener" style="flex:1;text-decoration:none"><button class="btn ghost" style="margin:0">Uber</button></a>
+      <a href="${l}" target="_blank" rel="noopener" style="flex:1;text-decoration:none"><button class="btn ghost" style="margin:0">Lyft</button></a>
+      <a href="${g}" target="_blank" rel="noopener" style="flex:1;text-decoration:none"><button class="btn ghost" style="margin:0">Maps</button></a>
+    </div>
+    <div class="hint">Taxi fare uses the exact TLC meter formula — $3.00 initial, $0.70 per ⅕ mile, plus whichever surcharges apply right now. Tolls and tip not included. Subway time assumes a 17 mph average including stops.</div>`;
+  p.innerHTML = h;
+}
+
+/* ══ PLACES ══ */
+async function saveDest(){
+  if(!S.dest) return;
+  S.saved.unshift({name:S.destName, lat:S.dest.lat, lng:S.dest.lng, icon:'📍'});
+  await persist(); renderSaved();
+}
+async function saveHere(){
+  if(!S.me){ locate(); return; }
+  const n = prompt('Name this place');
+  if(!n) return;
+  S.saved.unshift({name:n, lat:S.me.lat, lng:S.me.lng, icon:'📍'});
+  await persist(); renderSaved();
+}
+function goSaved(i){ const s=S.saved[i]; pickDest(s.lat,s.lng,s.name); }
+async function delSaved(i){ S.saved.splice(i,1); await persist(); renderSaved(); }
+window.saveDest=saveDest; window.saveHere=saveHere;
+window.goSaved=goSaved; window.delSaved=delSaved;
+
+function renderSaved(){
+  let h = hotelCard() +
+    `<button class="btn ghost" onclick="saveHere()">Save where I am now</button>
+     <div class="eyebrow">Your places</div>`;
+  if(!S.saved.length){
+    h += `<div class="hint">Nothing saved yet. Add the places you'll keep going back to — a restaurant, a friend's block, wherever you parked.</div>`;
+  } else {
+    S.saved.forEach((s,i)=>{
+      h += `<div class="saved"><span class="ico">${s.icon||'📍'}</span>
+        <div class="meta" onclick="goSaved(${i})"><b>${s.name}</b>
+        <span>${s.lat.toFixed(4)}, ${s.lng.toFixed(4)}</span></div>
+        <button class="x" onclick="delSaved(${i})">&times;</button></div>`;
+    });
+  }
+  h += `<div class="hint" style="padding-top:14px">Saved places stay on this device — everyone you share the link with keeps their own list.</div>`;
+  document.getElementById('p-save').innerHTML = h;
+}
+
+/* ══ SHEET ══ */
+const sheetEl = document.getElementById('sheet');
+function sheet(state){ sheetEl.className = state==='mid' ? '' : state; }
+function setTab(name){
+  S.tab=name;
+  document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('on',t.dataset.p===name));
+  document.querySelectorAll('.pane').forEach(x=>x.classList.toggle('on',x.id==='p-'+name));
+  document.getElementById('body').scrollTop=0;
+}
+document.querySelectorAll('.tab').forEach(t=>{
+  t.onclick=()=>{ setTab(t.dataset.p); if(sheetEl.classList.contains('small')) sheet('mid'); };
+});
+let dragY=null, dragH=0;
+const grab=document.getElementById('grab');
+grab.addEventListener('touchstart',e=>{ dragY=e.touches[0].clientY; dragH=sheetEl.offsetHeight;
+  sheetEl.style.transition='none'; },{passive:true});
+grab.addEventListener('touchmove',e=>{
+  if(dragY===null) return;
+  sheetEl.style.height = Math.min(innerHeight*0.9,
+    Math.max(110, dragH + (dragY - e.touches[0].clientY))) + 'px';
+},{passive:true});
+grab.addEventListener('touchend',()=>{
+  sheetEl.style.transition=''; sheetEl.style.height='';
+  const h=sheetEl.offsetHeight, v=innerHeight;
+  sheet(h>v*0.68?'big':h<v*0.3?'small':'mid'); dragY=null;
+});
+grab.onclick=()=> sheet(sheetEl.classList.contains('big')?'mid':'big');
+document.getElementById('locate').onclick=()=>{
+  locate();
+  if(S.me && mapOK) map.easeTo({center:[S.me.lng,S.me.lat],zoom:15.4});
+  if(S.tab==='near') fetchNearby();
+};
+
+/* ══ BOOT ══ */
+function boot(){
+  if(booted) return; booted=true;
+  initMap();
+  loadSaved();
+  renderTripEmpty();
+  document.getElementById('p-near').innerHTML = hotelCard()+'<div class="load">Finding you…</div>';
+  fetchNearby();
+  locate();
+  setInterval(()=>{ if(S.tab==='near') fetchNearby(); }, 45000);
+}
+</script>
+</body>
+</html>
