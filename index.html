@@ -274,6 +274,17 @@ body.peek #tabs,body.peek #body{display:none}
   border:2.5px solid #fff;box-shadow:0 3px 9px rgba(0,0,0,.6)}
 .mk-pin.dest{background:var(--red)}
 .mk-pin.hotel{background:var(--blue)}
+.mk-ent{width:16px;height:16px;border-radius:50%;background:var(--surface2);
+  border:2px solid #fff;display:flex;align-items:center;justify-content:center;
+  font-size:8px;font-weight:800;color:#0B0C0E;box-shadow:0 2px 6px rgba(0,0,0,.55)}
+.mk-ent.acc{background:var(--green)}
+.entline{display:flex;align-items:center;gap:7px;font-size:11.5px;color:var(--fg2);
+  padding:2px 0 8px}
+.entline .dot{width:14px;height:14px;border-radius:50%;background:var(--surface2);
+  border:1.5px solid var(--fg3);display:flex;align-items:center;justify-content:center;
+  font-size:7px;font-weight:800;color:var(--fg2);flex:0 0 auto}
+.entline .dot.acc{background:var(--green);border-color:var(--green);color:#06231A}
+.entline b{color:var(--fg)}
 @media(prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 </style>
 </head>
@@ -370,7 +381,7 @@ const $=i=>document.getElementById(i);
 
 const S={me:null,dest:null,destName:'',origin:'me',stations:[],saved:[],taps:[],
   markers:[],meMk:null,destMk:null,selStn:null,trip:null,tab:'near',busy:false,
-  state:'mid',tipDone:false};
+  state:'mid',tipDone:false,ent:{},entMk:[]};
 
 /* ── LOCK ── */
 function unlock(){
@@ -415,7 +426,7 @@ function ready(){
   longPress();
   map.on('click',()=>{
     $('results').style.display='none';$('q').blur();
-    if(S.selStn!==null){S.selStn=null;renderNearby();plotStations()}
+    if(S.selStn!==null){S.selStn=null;renderNearby();plotStations();plotEntrances(null)}
   });
 }
 function routeLayer(){
@@ -512,7 +523,8 @@ async function fetchNearby(){
       if(!r.ok){why='HTTP '+r.status;continue}
       const j=await r.json();
       if(!j||!Array.isArray(j.data)){why='unexpected data';continue}
-      S.stations=j.data;renderNearby();plotStations();renderPeek();return;
+      S.stations=j.data;renderNearby();plotStations();renderPeek();
+      loadEntrancesForVisible();return;
     }catch(e){why=e.name==='AbortError'?'timed out'
       :/fetch|network|load failed/i.test(e.message||'')?'blocked by browser':(e.message||'failed')}
   }
@@ -520,6 +532,57 @@ async function fetchNearby(){
    `<div class="warn"><b>Live arrivals unavailable</b>
     <p>Tried four routes to the MTA feed, all failed (${why}). Everything else still works.</p></div>
     <button class="btn ghost sm" onclick="fetchNearby()">Retry</button>`;
+}
+/* ── ENTRANCES (MTA Subway Entrances & Exits, NY Open Data) ── */
+const ENT_TYPE_LABEL={Stair:'Stairs',Escalator:'Escalator',Elevator:'Elevator',
+  'Station House':'Station house','Easement - Street':'Street-level',
+  'Easement - Passage':'Passage',Ramp:'Ramp',Door:'Door'};
+const ENT_LETTER={Stair:'S',Escalator:'E',Elevator:'L','Station House':'H',
+  'Easement - Street':'D','Easement - Passage':'D',Ramp:'R',Door:'D'};
+async function fetchEntrances(lat,lng,key){
+  if(S.ent[key]!==undefined) return S.ent[key];
+  S.ent[key]=null; // mark in-flight
+  const url=`https://data.ny.gov/resource/i9wp-a4ja.json?$where=within_circle(entrance_georeference,${lat},${lng},350)&$limit=40`;
+  try{
+    const c=new AbortController(),t=setTimeout(()=>c.abort(),8000);
+    let r;try{r=await fetch(url,{signal:c.signal})}finally{clearTimeout(t)}
+    if(!r.ok)throw 0;
+    const j=await r.json();
+    const list=j.map(e=>({lat:+e.entrance_latitude,lng:+e.entrance_longitude,
+      type:e.entrance_type||'Door',entry:e.entry_allowed==='YES'}))
+      .filter(e=>!isNaN(e.lat)&&!isNaN(e.lng));
+    S.ent[key]=list;return list;
+  }catch(e){S.ent[key]=[];return[]}
+}
+function entKey(st){return st.name+'|'+st.location[0].toFixed(4)+','+st.location[1].toFixed(4)}
+async function loadEntrancesForVisible(){
+  const at=S.me||{lat:HOTEL.lat,lng:HOTEL.lng};
+  await Promise.all(S.stations.slice(0,5).map(st=>
+    fetchEntrances(st.location[0],st.location[1],entKey(st))));
+  if(S.tab==='near') renderNearby();
+}
+function nearestEntranceLine(at,st){
+  const list=S.ent[entKey(st)];
+  if(list===undefined) return `<div class="entline">Finding entrances…</div>`;
+  if(!list||!list.length) return '';
+  let best=null,bd=Infinity;
+  list.forEach(e=>{const d=hav(at.lat,at.lng,e.lat,e.lng);if(d<bd){bd=d;best=e}});
+  if(!best) return '';
+  const acc=best.type==='Elevator';
+  const mins=Math.max(1,Math.round(bd*1.32/3.1*60));
+  return `<div class="entline"><span class="dot${acc?' acc':''}">${ENT_LETTER[best.type]||'D'}</span>
+    Nearest entrance: <b>${ENT_TYPE_LABEL[best.type]||best.type}</b> · ${mins} min walk</div>`;
+}
+function plotEntrances(idx){
+  S.entMk.forEach(m=>m.remove());S.entMk=[];
+  if(idx===null||!mapOK) return;
+  const st=S.stations[idx],list=S.ent[entKey(st)];
+  if(!list||!list.length) return;
+  list.forEach(e=>{
+    const acc=e.type==='Elevator';
+    S.entMk.push(mk(e.lng,e.lat,`<div class="mk-ent${acc?' acc':''}">${ENT_LETTER[e.type]||'D'}</div>`,
+      ()=>toast(`${ENT_TYPE_LABEL[e.type]||e.type}${e.entry?'':' · exit only'}`)));
+  });
 }
 const blt=(r,sm)=>`<span class="blt${DARK.includes(r)?' dark':''}${sm?' sm':''}" style="background:${LINES[r]||'#5A6068'}">${r}</span>`;
 const mins=i=>{const d=(new Date(i)-Date.now())/6e4;return d<.5?['Now','']:[String(Math.round(d)),'min']};
@@ -570,8 +633,9 @@ function renderNearby(){
     <div class="lines">${[...seen].sort().map(r=>blt(r)).join('')}</div>`;
   h+=`<div class="hdr"><h3>Nearest stations</h3><button onclick="fetchNearby()">Refresh</button></div>`;
   S.stations.slice(0,5).forEach((st,i)=>{
-    h+=`<div class="clock${S.selStn===i?' sel':''}"><div class="top"><b>${st.name}</b>
-      <em>${wMin(at.lat,at.lng,st.location[0],st.location[1])} min walk</em></div>`;
+    h+=`<div class="clock${S.selStn===i?' sel':''}" onclick="selectStation(${i})"><div class="top"><b>${st.name}</b>
+      <em>${wMin(at.lat,at.lng,st.location[0],st.location[1])} min walk</em></div>
+      ${nearestEntranceLine(at,st)}`;
     let any=false;
     [['N','NORTHBOUND'],['S','SOUTHBOUND']].forEach(([d,lab])=>{
       const l=(st[d]||[]).slice(0,3);if(!l.length)return;any=true;
@@ -591,7 +655,8 @@ function plotStations(){
   S.stations.slice(0,5).forEach((st,i)=>{
     S.markers.push(mk(st.location[1],st.location[0],
       `<div class="mk-stn${S.selStn===i?' sel':''}"><i></i></div>`,()=>{
-        S.selStn=i;setTab('near');snap('mid');renderNearby();plotStations();toast(st.name);
+        S.selStn=i;setTab('near');snap('mid');renderNearby();plotStations();
+        plotEntrances(i);toast(st.name);
         const el=$('p-near').querySelectorAll('.clock')[i];
         if(el)el.scrollIntoView({block:'center',behavior:'smooth'});
       }));
@@ -872,8 +937,13 @@ g.addEventListener('touchend',()=>{
 g.onclick=()=>{if(dy===null&&!('ontouchstart'in window))
   snap(S.state==='full'?'mid':S.state==='mid'?'peek':'mid')};
 
+function selectStation(i){
+  S.selStn=i;renderNearby();plotStations();plotEntrances(i);
+  const st=S.stations[i];
+  if(mapOK&&st) map.easeTo({center:[st.location[1],st.location[0]],zoom:16.2});
+}
 Object.assign(window,{locate,goHotel,fetchNearby,setOrigin,clearDest,
-  saveDest,saveHere,goSaved,delSaved,addTap,undoTap,hideTip});
+  saveDest,saveHere,goSaved,delSaved,addTap,undoTap,hideTip,selectStation});
 
 function boot(){
   if(booted)return;booted=true;
