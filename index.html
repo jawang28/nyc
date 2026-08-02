@@ -24,7 +24,7 @@
   --red:#D93025; --red-wash:#FDEDEC;
   --green:#137333; --green-wash:#E6F4EA;
   --r:14px; --rr:22px;
-  --peek:74px; --mid:50vh; --full:88vh; --sh:var(--mid);
+  --peek:74px; --mid:50vh; --topgap:126px; --sh:var(--mid);
   --safeb:env(safe-area-inset-bottom);
 }
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
@@ -54,16 +54,7 @@ svg{display:block;flex:0 0 auto}
 #q{flex:1;min-width:0;background:none;border:0;outline:none;padding:0;letter-spacing:-.01em}
 #q::placeholder{color:var(--ink3)}
 #qx{display:none;color:var(--ink2);padding:6px;margin:-6px}
-#chips{display:flex;gap:8px;overflow-x:auto;padding:10px 12px 4px;
-  scrollbar-width:none;-webkit-overflow-scrolling:touch}
-#chips::-webkit-scrollbar{display:none}
-.chip{flex:0 0 auto;display:flex;align-items:center;gap:6px;height:36px;padding:0 14px;
-  border-radius:99px;background:var(--paper);font-size:13px;font-weight:500;color:var(--ink);
-  box-shadow:0 1px 4px rgba(17,24,39,.14);white-space:nowrap}
-.chip:active{background:var(--wash2)}
-.chip.on{background:var(--ink);color:#fff}
-.chip .ic{width:15px;height:15px;stroke-width:2}
-#results{margin:8px 12px 0;background:var(--paper);border-radius:var(--r);overflow:hidden;
+#results{margin:10px 12px 0;background:var(--paper);border-radius:var(--r);overflow:hidden;
   display:none;max-height:48vh;overflow-y:auto;box-shadow:0 10px 30px rgba(17,24,39,.18)}
 .res{display:flex;align-items:center;gap:13px;padding:13px 15px;
   border-bottom:1px solid var(--line);min-height:58px}
@@ -363,7 +354,6 @@ body.peek #tabs,body.peek #body{display:none}
       <button id="qx"><svg class="ic s" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
     </div>
   </div>
-  <div id="chips"></div>
   <div id="results"></div>
 </div>
 
@@ -580,6 +570,33 @@ function onOrient(e){
       cone.style.transform=`translate(-50%,-100%) rotate(${h-b}deg)`;}
   }
 }
+/* iOS needs a user gesture before it will grant motion access, so we arm the
+   request on the first tap anywhere and enable silently everywhere else. */
+function autoCompass(){
+  const needsGesture = typeof DeviceOrientationEvent!=='undefined'
+    && typeof DeviceOrientationEvent.requestPermission==='function';
+  if(!needsGesture){ enableHeading(true); return; }
+  const arm=()=>{
+    document.removeEventListener('touchend',arm);
+    document.removeEventListener('click',arm);
+    enableHeading(true);
+  };
+  document.addEventListener('touchend',arm,{once:true,passive:true});
+  document.addEventListener('click',arm,{once:true});
+}
+async function enableHeading(silent){
+  if(S.headOn)return;
+  try{
+    if(typeof DeviceOrientationEvent!=='undefined'&&DeviceOrientationEvent.requestPermission){
+      const st=await DeviceOrientationEvent.requestPermission();
+      if(st!=='granted'){ if(!silent)toast('Compass permission denied'); return; }
+    }
+  }catch(e){ if(!silent)toast('Compass unavailable on this device'); return; }
+  addEventListener('deviceorientationabsolute',onOrient,true);
+  addEventListener('deviceorientation',onOrient,true);
+  S.headOn=true;$('fCompass').classList.add('on');
+  if(!silent)toast('Compass on — the cone shows which way you face');
+}
 async function toggleHeading(){
   if(S.headOn){
     removeEventListener('deviceorientation',onOrient);
@@ -589,16 +606,7 @@ async function toggleHeading(){
     if(mapOK)map.easeTo({bearing:0});
     toast('Compass off');return;
   }
-  try{
-    if(typeof DeviceOrientationEvent!=='undefined'&&DeviceOrientationEvent.requestPermission){
-      const st=await DeviceOrientationEvent.requestPermission();
-      if(st!=='granted'){toast('Compass permission denied');return}
-    }
-  }catch(e){toast('Compass unavailable on this device');return}
-  addEventListener('deviceorientationabsolute',onOrient,true);
-  addEventListener('deviceorientation',onOrient,true);
-  S.headOn=true;$('fCompass').classList.add('on');
-  toast('Compass on — the cone shows which way you face');
+  enableHeading(false);
 }
 const from=()=>S.origin==='hotel'
   ?{lat:HOTEL.lat,lng:HOTEL.lng,label:'DoubleTree Downtown'}
@@ -814,34 +822,7 @@ function routeToStation(i){
   setDest(st.location[0],st.location[1],st.name);
 }
 
-/* ── SEARCH + CHIPS ── */
-const CHIPS=[{k:'food',q:'restaurant',l:'Restaurants'},{k:'coffee',q:'cafe',l:'Coffee'},
-  {k:'shop',q:'supermarket',l:'Groceries'},{k:'pharm',q:'pharmacy',l:'Pharmacy'},
-  {k:'atm',q:'atm',l:'ATM'},{k:'park',q:'park',l:'Parks'}];
-function renderChips(){
-  $('chips').innerHTML=CHIPS.map(c=>
-    `<button class="chip${S.chip===c.q?' on':''}" onclick="chipGo('${c.q}')">${ico(c.k,'s')}${c.l}</button>`).join('');
-}
-async function chipGo(q){
-  if(S.chip===q){S.chip=null;clearPOI();renderChips();return}
-  S.chip=q;renderChips();
-  const at=S.me||{lat:HOTEL.lat,lng:HOTEL.lng};
-  const d=.012;
-  const box=[at.lng-d,at.lat+d,at.lng+d,at.lat-d].join(',');
-  try{
-    const r=await fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=12&bounded=1&viewbox=${box}&q=${encodeURIComponent(q)}`,
-      {headers:{Accept:'application/json'}});
-    const j=await r.json();
-    clearPOI();
-    if(!j.length){toast('Nothing found nearby');return}
-    j.forEach(x=>{
-      S.poiMk.push(mk(+x.lon,+x.lat,`<div class="mk-pin poi">${ico('pin')}</div>`,
-        ()=>setDest(+x.lat,+x.lon,x.display_name.split(',')[0])));
-    });
-    toast(`${j.length} nearby — tap a pin for directions`);
-    if(mapOK)map.easeTo({center:[at.lng,at.lat],zoom:15.4});
-  }catch(e){toast('Search unavailable right now')}
-}
+/* ── SEARCH ── */
 function clearPOI(){S.poiMk.forEach(m=>m.remove());S.poiMk=[]}
 
 const qE=$('q'),rE=$('results'),xE=$('qx');let qt;
@@ -1168,7 +1149,8 @@ function snap(st){
   S.state=st;
   document.body.classList.toggle('peek',st==='peek');
   document.documentElement.style.setProperty('--sh',
-    st==='peek'?'calc(74px + env(safe-area-inset-bottom))':st==='full'?'88vh':'50vh');
+    st==='peek'?'calc(74px + env(safe-area-inset-bottom))'
+    :st==='full'?'calc(100% - var(--topgap))':'50vh');
   if(st==='peek')renderPeek();
 }
 $('peek').onclick=()=>snap('mid');
@@ -1185,26 +1167,26 @@ const g=$('grab');
 g.addEventListener('touchstart',e=>{dy=e.touches[0].clientY;dh=sh.offsetHeight;moved=false;
   sh.style.transition='none'},{passive:true});
 g.addEventListener('touchmove',e=>{if(dy===null)return;moved=true;
-  sh.style.height=Math.min(innerHeight*.9,Math.max(70,dh+(dy-e.touches[0].clientY)))+'px'},{passive:true});
+  sh.style.height=Math.min(innerHeight-126,Math.max(70,dh+(dy-e.touches[0].clientY)))+'px'},{passive:true});
 g.addEventListener('touchend',()=>{
   sh.style.transition='';const px=sh.offsetHeight;sh.style.height='';
   if(!moved){snap(S.state==='full'?'mid':S.state==='mid'?'peek':'mid');dy=null;return}
   const v=innerHeight;
-  snap(px>v*.7?'full':px<v*.26?'peek':'mid');dy=null;
+  snap(px>v*.68?'full':px<v*.26?'peek':'mid');dy=null;
 },{passive:true});
 
 Object.assign(window,{locate,goHotel,fetchNearby,setOrigin,clearDest,saveDest,saveHere,
-  goSaved,delSaved,addTap,undoTap,hideTip,selectStation,routeToStation,chipGo});
+  goSaved,delSaved,addTap,undoTap,hideTip,selectStation,routeToStation});
 
 /* ── BOOT ── */
 (async function boot(){
-  initMap();renderChips();renderTrip();snap('mid');
+  initMap();renderTrip();snap('mid');
   $('p-near').innerHTML=hotelCard()+'<div class="skel"></div><div class="skel"></div>';
   S.saved=await get('places',[]);
   S.taps=await get('taps',[]);
   S.tipDone=await get('tipDone',false);
   renderSaved();
-  fetchNearby();locate(false);
+  fetchNearby();locate(false);autoCompass();
   setInterval(()=>{if(S.tab==='near'||S.state==='peek')fetchNearby()},45000);
   setInterval(()=>{if(S.state==='peek')renderPeek()},15000);
 })();
