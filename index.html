@@ -659,12 +659,22 @@ function locate(recenter){
   if(!navigator.geolocation){toast("This browser can't share location");return}
   $('fLoc').classList.add('on');
   if(lw!==null)navigator.geolocation.clearWatch(lw);
+  /* one-shot: a recenter request applies to the NEXT fix only, never to the
+     stream of updates that follows. Otherwise the map fights you as you move. */
+  let pending = recenter ? 'button' : null;
   lw=navigator.geolocation.watchPosition(p=>{
     const first=!S.me;
     S.me={lat:p.coords.latitude,lng:p.coords.longitude};
     if(S.meMk)S.meMk.setLngLat([S.me.lng,S.me.lat]);else makeMe();
-    if((recenter||(first&&!S.userMoved))&&mapOK)
-      map.easeTo({center:[S.me.lng,S.me.lat],zoom:Math.max(map.getZoom(),15.6)});
+    if(mapOK){
+      if(pending==='button'){
+        pending=null;
+        map.easeTo({center:[S.me.lng,S.me.lat]});   // keep whatever zoom you chose
+      } else if(first&&!S.userMoved){
+        pending=null;
+        map.easeTo({center:[S.me.lng,S.me.lat],zoom:15.6});  // only the very first fix
+      }
+    }
     if(first){fetchNearby();S.dest?plan():renderTrip()}
   },err=>{
     $('fLoc').classList.remove('on');
@@ -861,7 +871,7 @@ async function focusStation(lat,lng,name){
   setTab('near');snap('mid');
   S.focus={name,lat,lng,data:null,loading:true};
   renderNearby();
-  if(mapOK)map.easeTo({center:[lng,lat],zoom:Math.max(map.getZoom(),16.2)});
+  if(mapOK)map.easeTo({center:[lng,lat],zoom:map.getZoom()<14?15.8:map.getZoom()});
   try{
     const list=await stationsNear(lat,lng);
     let best=null,bd=Infinity;
@@ -978,7 +988,7 @@ function selectStation(i,fly){
   const st=S.stations[i];
   setTab('near');snap('mid');
   if(mapOK&&st)map.easeTo({center:[st.location[1],st.location[0]],
-    zoom:Math.max(map.getZoom(),16.2)});
+    zoom:map.getZoom()<14?15.8:map.getZoom()});
   if(!fly){const el=$('p-near').querySelectorAll('.stn')[i];
     if(el)el.scrollIntoView({block:'center',behavior:'smooth'})}
 }
