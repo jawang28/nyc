@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="NYC Nav">
 <meta name="theme-color" content="#FFFFFF">
 <title>NYC Navigator</title>
@@ -40,6 +40,9 @@ svg{display:block;flex:0 0 auto}
 .ic.l{width:24px;height:24px;stroke-width:1.7}
 
 #map{position:absolute;inset:0}
+#scrim{position:absolute;top:0;left:0;right:0;height:calc(env(safe-area-inset-top) + 6px);
+  background:linear-gradient(180deg,rgba(0,0,0,.42),rgba(0,0,0,.16) 60%,rgba(0,0,0,0));
+  z-index:45;pointer-events:none}
 .maplibregl-ctrl-attrib{font-size:9px!important;opacity:.55}
 .maplibregl-ctrl-bottom-left{display:none}
 
@@ -345,6 +348,7 @@ body.peek #tabs,body.peek #body{display:none}
 <body>
 
 <div id="map"></div>
+<div id="scrim"></div>
 
 <div id="top">
   <div class="searchwrap">
@@ -360,6 +364,9 @@ body.peek #tabs,body.peek #body{display:none}
 <div class="fabs" id="fabs">
   <button class="fab" id="fCompass" aria-label="Compass">
     <svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M15.4 8.6l-2 4.8-4.8 2 2-4.8z"/></svg>
+  </button>
+  <button class="fab" id="fLayers" aria-label="Toggle subway layer">
+    <svg class="ic" viewBox="0 0 24 24"><path d="M12 3 3 7.6l9 4.6 9-4.6z"/><path d="M3 12.4 12 17l9-4.6M3 16.8 12 21.4l9-4.6"/></svg>
   </button>
   <button class="fab" id="fPin" aria-label="Drop a pin">
     <svg class="ic" viewBox="0 0 24 24"><path d="M12 21s7-6.2 7-11a7 7 0 1 0-14 0c0 4.8 7 11 7 11z"/><circle cx="12" cy="10" r="2.4"/></svg>
@@ -477,12 +484,95 @@ function ready(){
   if(S.me)makeMe();
   if(S.dest)placeDest();
   if(S.stations.length)plotStations();
+  loadCitywide();
   longPress();
   map.on('click',()=>{
     $('results').style.display='none';$('q').blur();
     if(S.selStn!==null){S.selStn=null;renderNearby();plotStations();plotEntrances(null)}
   });
 }
+/* ── CITYWIDE SUBWAY LAYER ──
+   Every station and every street entrance in the system, not just the ones near you. */
+const SOC='https://data.ny.gov/resource/';
+async function loadCitywide(){
+  try{
+    const r=await fetch(SOC+'39hk-dx4f.json?$select=stop_name,daytime_routes,gtfs_latitude,'
+      +'gtfs_longitude,north_direction_label,south_direction_label,ada,borough&$limit=600');
+    if(!r.ok)throw 0;
+    const j=await r.json();
+    S.allStn=j.map(s=>({name:s.stop_name,routes:(s.daytime_routes||'').trim().split(/\s+/).filter(Boolean),
+      lat:+s.gtfs_latitude,lng:+s.gtfs_longitude,
+      nLab:s.north_direction_label||'',sLab:s.south_direction_label||'',
+      ada:s.ada==='1'||s.ada===1||s.ada===true})).filter(s=>!isNaN(s.lat));
+    addStationLayer();
+  }catch(e){console.warn('citywide stations',e)}
+  try{
+    const r=await fetch(SOC+"i9wp-a4ja.json?$select=entrance_latitude,entrance_longitude,"
+      +"entrance_type&$where=entry_allowed='YES'&$limit=2500");
+    if(!r.ok)throw 0;
+    const j=await r.json();
+    addEntranceLayer(j.map(e=>({lat:+e.entrance_latitude,lng:+e.entrance_longitude,
+      type:e.entrance_type||'Door'})).filter(e=>!isNaN(e.lat)));
+  }catch(e){console.warn('citywide entrances',e)}
+}
+function addStationLayer(){
+  if(!mapOK||!S.allStn.length||map.getSource('cityStn'))return;
+  map.addSource('cityStn',{type:'geojson',data:fc(S.allStn.map(s=>({type:'Feature',
+    geometry:{type:'Point',coordinates:[s.lng,s.lat]},
+    properties:{name:s.name,routes:s.routes.join(' '),
+      color:LINES[s.routes[0]]||'#5F6368',ada:s.ada?1:0,lat:s.lat,lng:s.lng}})))});
+  map.addLayer({id:'cityStnHalo',type:'circle',source:'cityStn',minzoom:10.5,
+    paint:{'circle-color':'#FFFFFF','circle-opacity':.95,
+      'circle-radius':['interpolate',['linear'],['zoom'],11,3.4,14,5.6,17,8.4]}});
+  map.addLayer({id:'cityStnDot',type:'circle',source:'cityStn',minzoom:10.5,
+    paint:{'circle-color':['get','color'],
+      'circle-stroke-color':'#FFFFFF','circle-stroke-width':1.4,
+      'circle-radius':['interpolate',['linear'],['zoom'],11,2.2,14,4,17,6.4]}});
+  map.addLayer({id:'cityStnLabel',type:'symbol',source:'cityStn',minzoom:13.6,
+    layout:{'text-field':['get','name'],'text-size':['interpolate',['linear'],['zoom'],14,10,17,12.5],
+      'text-offset':[0,1.1],'text-anchor':'top','text-optional':true,
+      'text-font':['Noto Sans Regular'],'text-max-width':9},
+    paint:{'text-color':'#3C4149','text-halo-color':'#FFFFFF','text-halo-width':1.6}});
+  map.on('click','cityStnDot',e=>{
+    const p=e.features[0].properties;
+    focusStation(+p.lat,+p.lng,p.name);
+  });
+  map.on('mouseenter','cityStnDot',()=>{map.getCanvas().style.cursor='pointer'});
+  map.on('mouseleave','cityStnDot',()=>{map.getCanvas().style.cursor=''});
+}
+function addEntranceLayer(list){
+  if(!mapOK||!list.length||map.getSource('cityEnt'))return;
+  map.addSource('cityEnt',{type:'geojson',data:fc(list.map(e=>({type:'Feature',
+    geometry:{type:'Point',coordinates:[e.lng,e.lat]},
+    properties:{type:e.type,acc:e.type==='Elevator'?1:0,
+      letter:({Stair:'S',Escalator:'E',Elevator:'L','Station House':'H',Ramp:'R'})[e.type]||'D'}})))});
+  map.addLayer({id:'cityEntDot',type:'circle',source:'cityEnt',minzoom:14.8,
+    paint:{'circle-color':['case',['==',['get','acc'],1],'#137333','#5F6368'],
+      'circle-stroke-color':'#FFFFFF','circle-stroke-width':1.5,
+      'circle-radius':['interpolate',['linear'],['zoom'],15,3.4,18,6.4],
+      'circle-opacity':['interpolate',['linear'],['zoom'],14.8,0,15.4,1]}},'cityStnHalo');
+  map.addLayer({id:'cityEntLabel',type:'symbol',source:'cityEnt',minzoom:16.6,
+    layout:{'text-field':['get','letter'],'text-size':9,'text-offset':[0,-1.1],
+      'text-font':['Noto Sans Regular'],'text-allow-overlap':false},
+    paint:{'text-color':'#5F6368','text-halo-color':'#FFFFFF','text-halo-width':1.4}});
+  map.on('click','cityEntDot',e=>toast(
+    (ENT_LABEL[e.features[0].properties.type]||e.features[0].properties.type)+' — station entrance'));
+}
+function toggleCity(){
+  S.cityOn=!S.cityOn;
+  ['cityStnHalo','cityStnDot','cityStnLabel','cityEntDot','cityEntLabel'].forEach(id=>{
+    if(mapOK&&map.getLayer(id))map.setLayoutProperty(id,'visibility',S.cityOn?'visible':'none')});
+  $('fLayers').classList.toggle('on',S.cityOn);
+  toast(S.cityOn?'Showing every station and entrance':'Subway layer hidden');
+}
+/* real platform sign wording, matched by position */
+function signLabels(lat,lng){
+  let best=null,bd=Infinity;
+  S.allStn.forEach(s=>{const d=hav(lat,lng,s.lat,s.lng);if(d<bd){bd=d;best=s}});
+  if(!best||bd>0.12)return null;
+  return {n:best.nLab,s:best.sLab,ada:best.ada,routes:best.routes,name:best.name};
+}
+
 function routeLayer(){
   if(map.getSource('rt'))return;
   map.addSource('rt',{type:'geojson',data:fc([])});
@@ -740,6 +830,52 @@ function plotEntrances(idx){
   });
 }
 
+/* ── TAP ANY STATION, ANYWHERE ── */
+async function focusStation(lat,lng,name){
+  setTab('near');snap('mid');
+  S.focus={name,lat,lng,data:null,loading:true};
+  renderNearby();
+  if(mapOK)map.easeTo({center:[lng,lat],zoom:16.4});
+  try{
+    const list=await stationsNear(lat,lng);
+    let best=null,bd=Infinity;
+    list.forEach(s=>{const d=hav(lat,lng,s.location[0],s.location[1]);if(d<bd){bd=d;best=s}});
+    S.focus.data=bd<0.25?best:null;
+  }catch(e){S.focus.data=null}
+  S.focus.loading=false;renderNearby();
+  const el=$('p-near').querySelector('.stn');
+  if(el)el.scrollIntoView({block:'start',behavior:'smooth'});
+}
+function clearFocus(){S.focus=null;renderNearby()}
+function focusCard(){
+  const f=S.focus;if(!f)return '';
+  const sign=signLabels(f.lat,f.lng);
+  const at=S.me||{lat:HOTEL.lat,lng:HOTEL.lng};
+  const walk=wMin(at.lat,at.lng,f.lat,f.lng);
+  let h=`<div class="hdr"><h3>Selected station</h3>
+    <button onclick="clearFocus()">Close</button></div>
+    <div class="stn sel"><div class="head"><span class="pico">${ico('train','s')}</span>
+      <span class="t"><b>${f.name}</b><em>${walk} min walk
+      ${sign&&sign.ada?' · <b>ADA accessible</b>':''}</em>
+      ${sign&&sign.routes.length?`<div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap">${sign.routes.map(r=>blt(r,'sm')).join('')}</div>`:''}
+      </span></div>`;
+  if(f.loading){h+=`<div class="dirgrp"><div class="dirlab">Loading live times…</div></div>`}
+  else if(!f.data){h+=`<div class="dirgrp"><div class="dirlab">No live times for this station right now</div></div>`}
+  else{
+    [['N',sign&&sign.n?sign.n:'Northbound'],['S',sign&&sign.s?sign.s:'Southbound']].forEach(([d,lab])=>{
+      const l=(f.data[d]||[]).slice(0,4);if(!l.length)return;
+      h+=`<div class="dirgrp"><div class="dirlab">To ${lab}</div>`;
+      l.forEach(t=>{const n=Math.max(0,Math.round(minsOf(t.time)));
+        h+=`<div class="arr">${blt(t.route)}<span class="to">${lab}</span>
+          <span class="m${n<=2?' soon':''}">${n<1?'Now':n}${n<1?'':'<small>min</small>'}</span></div>`});
+      h+=`</div>`;
+    });
+  }
+  h+=`<div class="foot"><button onclick="routeToFocus()">${ico('walk','s')}Directions here</button></div></div>`;
+  return h;
+}
+function routeToFocus(){if(S.focus)setDest(S.focus.lat,S.focus.lng,S.focus.name)}
+
 /* ── NEARBY ── */
 function hotelCard(){
   return `<div class="hotel"><div class="r1">${ico('hotel','l')}
@@ -767,7 +903,7 @@ function renderPeek(){
 
 function renderNearby(){
   const at=S.me||{lat:HOTEL.lat,lng:HOTEL.lng};
-  let h=hotelCard();
+  let h=hotelCard()+focusCard();
   if(!S.stations.length){
     $('p-near').innerHTML=h+`<div class="empty">${ico('train')}<b>No stations found</b>
       <p>Nothing nearby, or train times haven't loaded yet.</p></div>`;return;
@@ -781,13 +917,15 @@ function renderNearby(){
     h+=`<div class="stn${S.selStn===i?' sel':''}">
       <div class="head" onclick="selectStation(${i})">
         <span class="pico">${ico('train','s')}</span>
-        <span class="t"><b>${st.name}</b><em>${wMin(at.lat,at.lng,st.location[0],st.location[1])} min walk
+        <span class="t"><b>${st.name}</b><em>${wMin(at.lat,at.lng,st.location[0],st.location[1])} min walk${
+          (()=>{const g=signLabels(st.location[0],st.location[1]);return g&&g.ada?' · ADA accessible':''})()}
         ${entLine(at,st)}</em></span></div>`;
-    [['N','Uptown & The Bronx'],['S','Downtown & Brooklyn']].forEach(([d,lab])=>{
+    const sg=signLabels(st.location[0],st.location[1]);
+    [['N',sg&&sg.n?sg.n:'Uptown'],['S',sg&&sg.s?sg.s:'Downtown']].forEach(([d,lab])=>{
       const l=(st[d]||[]).slice(0,3);if(!l.length)return;
-      h+=`<div class="dirgrp"><div class="dirlab">${lab}</div>`;
-      l.forEach(t=>{const m=minsOf(t.time),n=Math.max(0,Math.round(m));
-        h+=`<div class="arr">${blt(t.route)}<span class="to">${lab.split(' & ')[0]} platform</span>
+      h+=`<div class="dirgrp"><div class="dirlab">To ${lab}</div>`;
+      l.forEach(t=>{const n=Math.max(0,Math.round(minsOf(t.time)));
+        h+=`<div class="arr">${blt(t.route)}<span class="to">${lab} platform</span>
           <span class="m${n<=2?' soon':''}">${n<1?'Now':n}${n<1?'':'<small>min</small>'}</span></div>`});
       h+=`</div>`;
     });
@@ -870,6 +1008,8 @@ $('fPin').onclick=()=>{if(!mapOK)return;const c=map.getCenter();
   setDest(c.lat,c.lng,'Dropped pin');toast('Pin dropped at map centre')};
 $('fLoc').onclick=()=>{locate(true);if(S.tab==='near')fetchNearby()};
 $('fCompass').onclick=toggleHeading;
+$('fLayers').onclick=toggleCity;
+$('fLayers').classList.add('on');
 
 /* ── ROUTING ── */
 async function valhalla(f,t,costing){
@@ -924,7 +1064,8 @@ async function planTransit(f,d){
 
   const northbound=best.x.location[0]>best.o.location[0];
   const dirKey=northbound?'N':'S';
-  const dirLabel=northbound?'Uptown & The Bronx':'Downtown & Brooklyn';
+  const sg=signLabels(best.o.location[0],best.o.location[1]);
+  const dirLabel=(sg&&(northbound?sg.n:sg.s))||(northbound?'Uptown':'Downtown');
   const next=(best.o[dirKey]||[])
     .filter(t=>best.shared.includes(t.route))
     .map(t=>({r:t.route,s:minsOf(t.time)*60}))
@@ -1008,7 +1149,7 @@ function itinerary(tr,d){
       <span class="stem solid" style="--legcolor:${c}"></span></div>
     <div class="c"><b>Board the ${blt(tr.route,'sm')} at ${tr.board.name}</b>
       <div class="plat">${ico(tr.northbound?'up':'down','s')}
-        <span>Take the ${tr.dirLabel} platform<em>${tr.northbound?'Northbound — signs say "Uptown"':'Southbound — signs say "Downtown"'}</em></span></div>
+        <span>Follow the signs to <b>${tr.dirLabel}</b><em>That's the ${tr.northbound?'northbound':'southbound'} platform — the sign wording above is what's printed at this station</em></span></div>
       <p style="margin-top:9px">Next train in ${Math.round(tr.wait/60)} min · about ${Math.round(tr.ride/60)} min on board${tr.shared.length>1?` · ${tr.shared.filter(r=>r!==tr.route).map(r=>blt(r,'sm')).join(' ')} also work`:''}</p></div>
     <span class="time">${clock(t0)}</span></div>`);
   t0+=tr.wait+tr.ride;
@@ -1050,7 +1191,7 @@ function renderTrip(){
     h+=`<div class="hdr"><h3>Best way there</h3></div>`;
     h+=`<button class="mode train${fastest==='train'?' hi':''}"><span class="badge">${ico('train')}</span>
       <span class="m"><b>Subway ${blt(t.tr.route,'sm')}</b>
-      <em>${t.tr.dirLabel.split(' & ')[0]} from ${t.tr.board.name}</em></span>
+      <em>Toward ${t.tr.dirLabel} · from ${t.tr.board.name}</em></span>
       <span class="n"><b>${fm(t.tr.total)}</b><span>$${FARE.toFixed(2)}</span></span></button>`;
     h+=itinerary(t.tr,S.destName);
     h+=`<div class="hdr"><h3>Other options</h3></div>`;
@@ -1176,7 +1317,8 @@ g.addEventListener('touchend',()=>{
 },{passive:true});
 
 Object.assign(window,{locate,goHotel,fetchNearby,setOrigin,clearDest,saveDest,saveHere,
-  goSaved,delSaved,addTap,undoTap,hideTip,selectStation,routeToStation});
+  goSaved,delSaved,addTap,undoTap,hideTip,selectStation,routeToStation,
+  focusStation,clearFocus,routeToFocus,toggleCity});
 
 /* ── BOOT ── */
 (async function boot(){
