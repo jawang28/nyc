@@ -376,6 +376,13 @@ body.peek #tabs,body.peek #body{display:none}
   animation:sh 1.3s linear infinite;border:1px solid var(--line)}
 @keyframes sh{to{background-position:-200% 0}}
 
+#recenter{position:absolute;left:50%;transform:translate(-50%,10px);z-index:57;
+  bottom:calc(var(--sh) + 18px);display:none;align-items:center;gap:8px;
+  background:var(--paper);color:var(--blue);border-radius:99px;padding:11px 18px;
+  font-size:13.5px;font-weight:600;box-shadow:0 4px 18px rgba(17,24,39,.28);
+  opacity:0;transition:opacity .2s,transform .2s,bottom .32s}
+#recenter.show{display:flex;opacity:1;transform:translate(-50%,0)}
+
 #permcard{position:absolute;left:10px;right:10px;bottom:calc(var(--sh) + 14px);z-index:58;
   display:none;align-items:center;gap:12px;background:var(--paper);border-radius:14px;
   padding:13px 14px;box-shadow:0 6px 26px rgba(17,24,39,.24);
@@ -524,6 +531,10 @@ body.nav #top,body.nav #scrim{display:none}
   <button id="permGo">Enable</button>
   <button id="permNo" aria-label="Dismiss">&times;</button>
 </div>
+<button id="recenter" onclick="resumeFollow()">
+  <svg class="ic s" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.4"/><circle cx="12" cy="12" r="8"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2"/></svg>
+  Re-center
+</button>
 <div id="sheetLayers"></div>
 <div id="toast"></div>
 
@@ -604,7 +615,7 @@ const S={me:null,heading:null,headOn:false,dest:null,destName:'',origin:'me',
   selStn:null,trip:null,tab:'near',busy:false,state:'mid',tipDone:false,ent:{},
   allStn:[],cityOn:true,focus:null,zooming:false,userMoved:false,moveT:null,
   alerts:[],recents:[],loos:[],looMk:[],looOn:false,alarm:null,
-  nav:null,navCoords:null,rIdx:null,style:'standard',filters:{},lastFeats:[],entCache:null,
+  nav:null,navCoords:null,rIdx:null,followPaused:0,style:'standard',filters:{},lastFeats:[],entCache:null,
   compassAsked:false};
 
 /* ── TOAST ── */
@@ -622,7 +633,8 @@ function initMap(){
   map.on('zoomstart',()=>{S.zooming=true});
   map.on('zoomend',()=>{setTimeout(()=>{S.zooming=false},150)});
   ['dragstart','zoomstart','rotatestart','pitchstart'].forEach(ev=>
-    map.on(ev,()=>{S.userMoved=true;clearTimeout(S.moveT);}));
+    map.on(ev,()=>{S.userMoved=true;clearTimeout(S.moveT);
+      if(S.nav){S.followPaused=Date.now();showRecenter(true)}}));
   ['dragend','zoomend','rotateend'].forEach(ev=>
     map.on(ev,()=>{clearTimeout(S.moveT);S.moveT=setTimeout(()=>{S.userMoved=false},25000)}));
   map.on('error',()=>{if(!mapOK)fallback()});
@@ -1139,11 +1151,21 @@ function startNav(){
   if(!S.headOn)enableHeading(true);
   if(mapOK)map.easeTo({center:[S.me?S.me.lng:S.dest.lng,S.me?S.me.lat:S.dest.lat],
     zoom:17.4,pitch:55,duration:700});
+  S.followPaused=0;showRecenter(false);
   snap('peek');updateNav();
   toast('Navigation started — keep this screen on');
 }
+function showRecenter(on){
+  const b=$('recenter');if(!b)return;
+  b.classList.toggle('show',!!on&&!!S.nav);
+}
+function resumeFollow(){
+  S.followPaused=0;showRecenter(false);
+  if(S.me&&mapOK)map.easeTo({center:[S.me.lng,S.me.lat],
+    bearing:S.heading!=null?S.heading:map.getBearing(),zoom:17.4,duration:500});
+}
 function stopNav(){
-  S.nav=null;document.body.classList.remove('nav');
+  S.nav=null;S.followPaused=0;showRecenter(false);document.body.classList.remove('nav');
   if(mapOK)map.easeTo({pitch:0,duration:500});
   snap('mid');renderTrip();
 }
@@ -1166,6 +1188,9 @@ function updateNav(){
   b.querySelector('.sub').textContent=
     `${Math.max(1,Math.round(remain/60))} min left · step ${n.idx+1} of ${n.steps.length}`;
   if(S.me&&mapOK&&document.body.classList.contains('nav')){
+    const paused=S.followPaused&&(Date.now()-S.followPaused<12000);
+    if(paused){showRecenter(true);return}
+    if(S.followPaused){S.followPaused=0;showRecenter(false)}
     map.easeTo({center:[S.me.lng,S.me.lat],
       bearing:S.heading!=null?S.heading:map.getBearing(),duration:600});
   }
@@ -2106,7 +2131,7 @@ Object.assign(window,{locate,goHotel,fetchNearby,setOrigin,clearDest,saveDest,sa
   goSaved,delSaved,addTap,undoTap,hideTip,selectStation,routeToStation,
   focusStation,clearFocus,routeToFocus,toggleCity,fitTrip,
   toggleLoos,armAlarm,cancelAlarm,goRecent,clearRecents,setDest,toggleHeadingFromPanel,
-  startNav,stopNav,openLayers,closeLayers,applyStyle,toggleFilter,toggleLoosFromPanel});
+  startNav,stopNav,resumeFollow,showRecenter,openLayers,closeLayers,applyStyle,toggleFilter,toggleLoosFromPanel});
 
 /* ── BOOT ── */
 (async function boot(){
