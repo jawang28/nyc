@@ -68,8 +68,13 @@ svg{display:block;flex:0 0 auto}
 .res .t{min-width:0;flex:1}
 .res b{display:block;font-size:14.5px;font-weight:600;letter-spacing:-.01em;
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.res span{display:block;font-size:12.5px;color:var(--ink2);margin-top:1px;
+.res span{display:flex;align-items:center;gap:4px;font-size:12.5px;color:var(--ink2);margin-top:2px;
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.res .pico.stn{background:var(--ink);color:#fff}
+.res .dist{font-size:12px;color:var(--ink3);flex:0 0 auto;font-variant-numeric:tabular-nums;
+  font-weight:600}
+.res.searching{opacity:.6;min-height:44px}
+.res.searching .t span{font-size:12.5px}
 
 /* ── FLOATING CONTROLS ── */
 .fabs{position:absolute;right:12px;bottom:calc(var(--sh) + 14px);z-index:35;
@@ -668,7 +673,9 @@ function applyStyle(key){
   };
   map.once('styledata',()=>setTimeout(restore,60));
   if(st.raster){
-    map.setStyle({version:8,sources:{sat:{type:'raster',tiles:[st.raster],tileSize:256,
+    map.setStyle({version:8,
+      glyphs:'https://tiles.openfreemap.org/fonts/{fontstack}/{range}.pbf',
+      sources:{sat:{type:'raster',tiles:[st.raster],tileSize:256,
       attribution:st.attr,maxzoom:19}},layers:[{id:'sat',type:'raster',source:'sat'}]});
   } else map.setStyle(st.url);
   put('style',key);openLayers();
@@ -678,7 +685,7 @@ function applyStyle(key){
 const FILTERS=[
   {k:'stations',label:'Subway stations',layers:['cityStnHalo','cityStnDot','cityStnLabel']},
   {k:'entrances',label:'Station entrances',layers:['cityEntDot','cityEntLabel']},
-  {k:'route',label:'Route line',layers:['rtCase','rtLine','rtArrow']}
+  {k:'route',label:'Route line',layers:['rtCase','rtLine','rtDash','rtArrow']}
 ];
 function applyFilters(){
   if(!mapOK)return;
@@ -799,13 +806,24 @@ function signLabels(lat,lng){
 function routeLayer(){
   if(map.getSource('rt'))return;
   map.addSource('rt',{type:'geojson',data:fc([])});
-  map.addLayer({id:'rtCase',type:'line',source:'rt',layout:{'line-cap':'round','line-join':'round'},
-    paint:{'line-color':'#FFFFFF','line-width':9}});
-  map.addLayer({id:'rtLine',type:'line',source:'rt',layout:{'line-cap':'round','line-join':'round'},
-    paint:{'line-color':['coalesce',['get','color'],'#1A73E8'],'line-width':5,
-      'line-dasharray':['case',['==',['get','dash'],1],['literal',[1.6,1.6]],['literal',[1,0]]]}});
+  /* white casing under everything, like Apple/Google */
+  map.addLayer({id:'rtCase',type:'line',source:'rt',
+    layout:{'line-cap':'round','line-join':'round'},
+    paint:{'line-color':'#FFFFFF','line-width':9,'line-opacity':.95}});
+  /* solid ride legs — line-dasharray cannot be an expression, so filter instead */
+  map.addLayer({id:'rtLine',type:'line',source:'rt',
+    filter:['!=',['get','dash'],1],
+    layout:{'line-cap':'round','line-join':'round'},
+    paint:{'line-color':['coalesce',['get','color'],'#1A73E8'],'line-width':5.5}});
+  /* dashed walking legs */
+  map.addLayer({id:'rtDash',type:'line',source:'rt',
+    filter:['==',['get','dash'],1],
+    layout:{'line-cap':'butt','line-join':'round'},
+    paint:{'line-color':['coalesce',['get','color'],'#5F6368'],'line-width':4.5,
+      'line-dasharray':[0.1,1.9]}});
   map.addLayer({id:'rtArrow',type:'symbol',source:'rt',minzoom:14,
-    layout:{'symbol-placement':'line','symbol-spacing':70,'text-field':'▸','text-size':15,
+    filter:['!=',['get','dash'],1],
+    layout:{'symbol-placement':'line','symbol-spacing':72,'text-field':'▸','text-size':15,
       'text-font':['Noto Sans Regular'],'text-allow-overlap':true,'text-keep-upright':false},
     paint:{'text-color':'#FFFFFF','text-halo-color':'rgba(0,0,0,.35)','text-halo-width':1}});
 }
@@ -1469,33 +1487,152 @@ function routeToStation(i){
 /* ── SEARCH ── */
 function clearPOI(){S.poiMk.forEach(m=>m.remove());S.poiMk=[]}
 
-const qE=$('q'),rE=$('results'),xE=$('qx');let qt;
+const qE=$('q'),rE=$('results'),xE=$('qx');
+let qt=null,qSeq=0,qAbort=null,lastRemote=0;
+
 qE.addEventListener('input',()=>{
-  xE.style.display=qE.value?'block':'none';clearTimeout(qt);
-  if(qE.value.trim().length<3){rE.style.display='none';return}
-  qt=setTimeout(search,420);
+  xE.style.display=qE.value?'block':'none';
+  clearTimeout(qt);
+  const v=qE.value.trim();
+  if(!v){showQuick();return}
+  renderResults(searchLocal(v),true);      // local hits appear instantly
+  qt=setTimeout(()=>runSearch(v),300);
 });
-xE.onclick=()=>{qE.value='';xE.style.display='none';rE.style.display='none';qE.focus()};
-async function search(){
-  rE.style.display='block';
-  rE.innerHTML=`<div class="res"><span class="pico">${ico('search','s')}</span><div class="t"><b>Searching…</b></div></div>`;
-  try{
-    const r=await fetch('https://nominatim.openstreetmap.org/search?format=json&limit=6&bounded=1'
-      +'&viewbox=-74.30,40.92,-73.68,40.48&q='+encodeURIComponent(qE.value.trim()),
-      {headers:{Accept:'application/json'}});
-    const j=await r.json();
-    if(!j.length){rE.innerHTML=`<div class="res"><span class="pico">${ico('search','s')}</span>
-      <div class="t"><b>Nothing found</b><span>Try adding the borough</span></div></div>`;return}
-    rE.innerHTML=j.map((x,i)=>{const p=x.display_name.split(',');
-      return `<div class="res" data-i="${i}"><span class="pico">${ico('pin','s')}</span>
-        <div class="t"><b>${p[0]}</b><span>${p.slice(1,4).join(',').trim()}</span></div></div>`}).join('');
-    rE.querySelectorAll('.res').forEach(el=>el.onclick=()=>{
-      const x=j[+el.dataset.i];setDest(+x.lat,+x.lon,x.display_name.split(',')[0])});
-  }catch(e){
-    rE.innerHTML=`<div class="res"><span class="pico">${ico('x','s')}</span>
-      <div class="t"><b>Search unavailable</b><span>Press and hold the map to drop a pin</span></div></div>`;
-  }
+qE.addEventListener('focus',()=>{if(!qE.value.trim())showQuick()});
+qE.addEventListener('keydown',e=>{
+  if(e.key==='Enter'){e.preventDefault();clearTimeout(qt);
+    const first=rE.querySelector('.res[data-pick]');
+    if(first)first.click(); else runSearch(qE.value.trim());}
+});
+xE.onclick=()=>{qE.value='';xE.style.display='none';showQuick();qE.focus()};
+
+/* ── what to show before you've typed anything ── */
+function showQuick(){
+  const at=S.me||{lat:HOTEL.lat,lng:HOTEL.lng};
+  const items=[];
+  items.push({kind:'hotel',name:'DoubleTree Downtown',sub:HOTEL.addr,lat:HOTEL.lat,lng:HOTEL.lng});
+  S.saved.slice(0,3).forEach(s=>items.push({kind:'saved',name:s.name,sub:'Saved place',lat:s.lat,lng:s.lng}));
+  S.recents.slice(0,4).forEach(r=>items.push({kind:'recent',name:r.name,sub:'Recent',lat:r.lat,lng:r.lng}));
+  if(!items.length){rE.style.display='none';return}
+  renderResults(items.map(i=>({...i,mi:hav(at.lat,at.lng,i.lat,i.lng)})),false);
 }
+
+/* ── instant, offline: stations, saved places, recents, raw coordinates ── */
+function norm(s){return (s||'').toLowerCase().replace(/[^a-z0-9 ]/g,' ').replace(/\s+/g,' ').trim()}
+function scoreName(name,q){
+  const n=norm(name),t=norm(q);
+  if(!n||!t)return 0;
+  if(n===t)return 100;
+  if(n.startsWith(t))return 80;
+  const words=n.split(' ');
+  if(words.some(w=>w.startsWith(t)))return 65;
+  if(n.includes(t))return 45;
+  const parts=t.split(' ').filter(Boolean);
+  if(parts.length>1&&parts.every(p=>n.includes(p)))return 40;
+  return 0;
+}
+function searchLocal(q){
+  const at=S.me||{lat:HOTEL.lat,lng:HOTEL.lng};
+  const out=[];
+  const coord=q.match(/^\s*(-?\d{1,2}\.\d+)\s*,\s*(-?\d{1,3}\.\d+)\s*$/);
+  if(coord)out.push({kind:'pin',name:'Go to coordinates',sub:coord[1]+', '+coord[2],
+    lat:+coord[1],lng:+coord[2],score:100});
+  S.allStn.forEach(s=>{
+    const sc=scoreName(s.name,q); if(!sc)return;
+    out.push({kind:'station',name:s.name,
+      sub:s.routes.join(' ')+(s.ada?' · accessible':''),routes:s.routes,
+      lat:s.lat,lng:s.lng,score:sc+6});
+  });
+  S.saved.forEach(s=>{const sc=scoreName(s.name,q);if(sc)
+    out.push({kind:'saved',name:s.name,sub:'Saved place',lat:s.lat,lng:s.lng,score:sc+10})});
+  S.recents.forEach(r=>{const sc=scoreName(r.name,q);if(sc)
+    out.push({kind:'recent',name:r.name,sub:'Recent',lat:r.lat,lng:r.lng,score:sc+4})});
+  if(scoreName(HOTEL.name,q)||scoreName('hotel',q))
+    out.push({kind:'hotel',name:'DoubleTree Downtown',sub:HOTEL.addr,
+      lat:HOTEL.lat,lng:HOTEL.lng,score:70});
+  return dedupe(out.map(i=>({...i,mi:hav(at.lat,at.lng,i.lat,i.lng)})))
+    .sort((a,b)=>(b.score-a.score)||(a.mi-b.mi)).slice(0,8);
+}
+function dedupe(list){
+  const seen=new Set();
+  return list.filter(i=>{
+    const k=i.lat.toFixed(4)+','+i.lng.toFixed(4);
+    if(seen.has(k))return false;seen.add(k);return true;
+  });
+}
+
+/* ── remote geocoding: Photon for type-ahead, Nominatim as backup ── */
+const CAT={restaurant:'food',fast_food:'food',cafe:'coffee',bar:'food',pub:'food',
+  supermarket:'shop',convenience:'shop',pharmacy:'pharm',bank:'atm',atm:'atm',
+  park:'park',hotel:'hotel',museum:'star',attraction:'star',station:'train',
+  subway:'train',toilets:'loo',bicycle_rental:'bike'};
+function catIcon(k,v){return CAT[v]||CAT[k]||'pin'}
+async function runSearch(v){
+  if(!v||v.length<2)return;
+  const seq=++qSeq;
+  if(qAbort)try{qAbort.abort()}catch(e){}
+  qAbort=new AbortController();
+  const at=S.me||{lat:HOTEL.lat,lng:HOTEL.lng};
+  const local=searchLocal(v);
+  renderResults(local,true);
+  let remote=[];
+  try{
+    const u=`https://photon.komoot.io/api/?q=${encodeURIComponent(v)}&lat=${at.lat}&lon=${at.lng}&limit=10&lang=en`;
+    const r=await fetch(u,{signal:qAbort.signal});
+    if(!r.ok)throw 0;
+    const j=await r.json();
+    remote=(j.features||[]).map(f=>{
+      const p=f.properties||{},c=f.geometry&&f.geometry.coordinates;
+      if(!c)return null;
+      const lat=c[1],lng=c[0];
+      if(lat<40.40||lat>41.05||lng<-74.36||lng>-73.60)return null;   // NYC area only
+      const bits=[p.street&&(p.housenumber?p.housenumber+' '+p.street:p.street),
+        p.district||p.city,p.state].filter(Boolean);
+      return {kind:catIcon(p.osm_key,p.osm_value),name:p.name||p.street||'Unnamed place',
+        sub:bits.join(', '),lat,lng,score:30};
+    }).filter(Boolean);
+  }catch(e){
+    if(e&&e.name==='AbortError')return;
+    try{
+      const r=await fetch('https://nominatim.openstreetmap.org/search?format=json&limit=8&bounded=1'
+        +'&viewbox=-74.36,41.05,-73.60,40.40&q='+encodeURIComponent(v),{headers:{Accept:'application/json'}});
+      const j=await r.json();
+      remote=j.map(x=>{const p=x.display_name.split(',');
+        return {kind:'pin',name:p[0],sub:p.slice(1,4).join(',').trim(),
+          lat:+x.lat,lng:+x.lon,score:28}});
+    }catch(e2){}
+  }
+  if(seq!==qSeq)return;                                  // a newer query already ran
+  const merged=dedupe([...local,...remote.map(i=>({...i,mi:hav(at.lat,at.lng,i.lat,i.lng)}))])
+    .sort((a,b)=>(b.score-a.score)||(a.mi-b.mi)).slice(0,10);
+  renderResults(merged,false,v);
+}
+
+const KIND_LABEL={station:'Subway',saved:'Saved',recent:'Recent',hotel:'Hotel',pin:'Place'};
+function renderResults(list,partial,q){
+  if(!list||!list.length){
+    rE.style.display='block';
+    rE.innerHTML=partial?`<div class="res"><span class="pico">${ico('search','s')}</span>
+      <div class="t"><b>Searching…</b></div></div>`
+      :`<div class="res"><span class="pico">${ico('search','s')}</span><div class="t">
+      <b>Nothing found${q?' for "'+q+'"':''}</b><span>Try adding the borough, or drop a pin by holding the map</span></div></div>`;
+    return;
+  }
+  rE.style.display='block';
+  rE.innerHTML=list.map((i,n)=>`<div class="res" data-pick data-i="${n}">
+      <span class="pico${i.kind==='station'?' stn':''}">${ico(i.kind==='station'?'train':
+        i.kind==='saved'?'star':i.kind==='recent'?'history':i.kind,'s')}</span>
+      <div class="t"><b>${i.name}</b><span>${
+        i.kind==='station'&&i.routes?i.routes.map(r=>blt(r,'sm')).join(''):''
+      }${i.kind==='station'&&i.routes?' ':''}${i.sub||KIND_LABEL[i.kind]||''}</span></div>
+      <span class="dist">${i.mi<0.1?Math.round(i.mi*5280)+' ft':i.mi.toFixed(1)+' mi'}</span>
+    </div>`).join('')+(partial?`<div class="res searching"><span class="pico">${ico('search','s')}</span>
+      <div class="t"><span>Searching the map…</span></div></div>`:'');
+  rE.querySelectorAll('.res[data-pick]').forEach(el=>el.onclick=()=>{
+    const i=list[+el.dataset.i];setDest(i.lat,i.lng,i.name);
+  });
+}
+
 function placeDest(){
   if(S.destMk)S.destMk.setLngLat([S.dest.lng,S.dest.lat]);
   else if(mapOK)S.destMk=mk(S.dest.lng,S.dest.lat,`<div class="mk-pin dest">${ico('flag')}</div>`);
@@ -1545,13 +1682,23 @@ async function valhalla(f,t,costing){
 }
 const guess=(f,t,mph)=>{const mi=hav(f.lat,f.lng,t.lat,t.lng)*1.32;
   return{sec:mi/mph*3600,mi,coords:null,est:true,steps:[]}};
-function poly(s){let i=0,la=0,ln=0,o=[],sh,re,by;
+function decodePoly(s,f){let i=0,la=0,ln=0,o=[],sh,re,by;
   while(i<s.length){sh=0;re=0;
     do{by=s.charCodeAt(i++)-63;re|=(by&31)<<sh;sh+=5}while(by>=32);
     la+=(re&1)?~(re>>1):(re>>1);sh=0;re=0;
     do{by=s.charCodeAt(i++)-63;re|=(by&31)<<sh;sh+=5}while(by>=32);
-    ln+=(re&1)?~(re>>1):(re>>1);o.push([ln/1e6,la/1e6])}
+    ln+=(re&1)?~(re>>1):(re>>1);o.push([ln/f,la/f])}
   return o}
+const inNYC=p=>p&&p[1]>40.3&&p[1]<41.1&&p[0]>-74.5&&p[0]<-73.4;
+function poly(s){
+  /* Valhalla encodes at precision 6; fall back to 5 if that lands us off the map */
+  let o=decodePoly(s,1e6);
+  if(o.length&&!inNYC(o[0])){
+    const alt=decodePoly(s,1e5);
+    if(alt.length&&inNYC(alt[0]))return alt;
+  }
+  return o.filter(inNYC).length?o:[];
+}
 const shapeCoords=r=>(r&&r.coords&&r.coords.length)?r.coords:null;
 
 /* ── TRANSIT ROUTER ──
@@ -1698,6 +1845,9 @@ async function drawTrip(quiet){
     const cw=shapeCoords(t.w);
     if(cw)feats.push(line(cw,'#1A73E8',false));
   }
+  const pts=feats.reduce((n,f)=>n+f.geometry.coordinates.length,0);
+  if(!pts){toast('Could not draw the route — showing a direct line');
+    feats=[line([[f.lng,f.lat],[d.lng,d.lat]],'#1A73E8',true)];}
   drawFeatures(feats);
   if(quiet||S.nav)return;                       // background reroute: don't move the camera
   if(S.userMoved){toast('Route updated — tap ⌖ to fit it on screen');return}
