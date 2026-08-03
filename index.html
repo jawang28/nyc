@@ -74,12 +74,17 @@ svg{display:block;flex:0 0 auto}
 /* ── FLOATING CONTROLS ── */
 .fabs{position:absolute;right:12px;bottom:calc(var(--sh) + 14px);z-index:35;
   display:flex;flex-direction:column;gap:8px;transition:bottom .32s cubic-bezier(.32,.72,0,1)}
+.zoompill{background:var(--paper);border-radius:23px;overflow:hidden;
+  box-shadow:0 2px 5px rgba(17,24,39,.18),0 6px 16px rgba(17,24,39,.12);
+  display:flex;flex-direction:column}
+.zoompill button{width:44px;height:44px;display:flex;align-items:center;justify-content:center;color:var(--ink)}
+.zoompill button:active{background:var(--wash2)}
+.zoompill .hr{height:1px;background:var(--line);margin:0 9px}
 .fab{width:44px;height:44px;border-radius:50%;background:var(--paper);color:var(--ink);
   display:flex;align-items:center;justify-content:center;
   box-shadow:0 2px 5px rgba(17,24,39,.18),0 6px 16px rgba(17,24,39,.12)}
 .fab:active{background:var(--wash2)}
 .fab.on{background:var(--blue);color:#fff}
-#fCompass .ic{transition:transform .12s linear}
 
 /* ── SHEET ── */
 #sheet{position:absolute;left:0;right:0;bottom:0;z-index:38;height:var(--sh);
@@ -132,7 +137,17 @@ body.peek #tabs,body.peek #body{display:none}
 .hotel .acts .go{background:var(--blue);color:#fff}
 .hotel .acts>*:active{opacity:.75}
 
-.lines{display:flex;flex-wrap:wrap;gap:7px;padding:0 3px 14px}
+.homerow{width:100%;display:flex;align-items:center;gap:12px;background:var(--blue-wash);
+  border:1px solid var(--blue-line);border-radius:var(--r);padding:12px 14px;margin-bottom:11px;
+  text-align:left;color:#12326B}
+.homerow:active{opacity:.8}
+.homerow .pico{width:32px;height:32px;border-radius:50%;background:var(--blue);color:#fff;
+  display:flex;align-items:center;justify-content:center;flex:0 0 auto}
+.homerow .m{flex:1;min-width:0}
+.homerow .m b{display:block;font-size:14.5px;font-weight:600}
+.homerow .m em{font-style:normal;display:block;font-size:12px;color:#41618F;margin-top:1px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.homerow>.ic{color:var(--blue)}
 
 /* station card — light */
 .stn{background:var(--paper);border:1px solid var(--line);border-radius:var(--r);
@@ -378,7 +393,10 @@ body.nav #top,body.nav #scrim{display:none}
 .lpanel{position:absolute;left:10px;right:10px;bottom:calc(var(--safeb) + 12px);
   background:var(--paper);border-radius:18px;padding:8px 14px 14px;
   box-shadow:0 -6px 34px rgba(17,24,39,.28)}
-.lhdr{display:flex;align-items:center;justify-content:space-between;padding:10px 2px 8px}
+.lgrab{width:38px;height:5px;border-radius:3px;background:#D3D7DD;margin:2px auto 4px}
+.lhdr{display:flex;align-items:center;justify-content:space-between;padding:12px 2px 8px}
+.tl{display:flex;flex-direction:column;text-align:left;gap:2px}
+.tl em{font-style:normal;font-size:12px;color:var(--ink3)}
 .lhdr b{font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--ink3)}
 .lhdr button{color:var(--ink3);padding:6px;margin:-6px}
 .styles{display:flex;gap:9px;margin-bottom:6px}
@@ -461,24 +479,16 @@ body.nav #top,body.nav #scrim{display:none}
 </div>
 
 <div class="fabs" id="fabs">
-  <button class="fab" id="fCompass" aria-label="Compass">
-    <svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M15.4 8.6l-2 4.8-4.8 2 2-4.8z"/></svg>
-  </button>
   <button class="fab" id="fFilters" aria-label="Map layers and filters">
-    <svg class="ic" viewBox="0 0 24 24"><path d="M4 6.4h16M7 12h10M10 17.6h4"/></svg>
-  </button>
-  <button class="fab" id="fZoomIn" aria-label="Zoom in">
-    <svg class="ic" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
-  </button>
-  <button class="fab" id="fZoomOut" aria-label="Zoom out">
-    <svg class="ic" viewBox="0 0 24 24"><path d="M5 12h14"/></svg>
-  </button>
-  <button class="fab" id="fLayers" aria-label="Toggle subway layer">
     <svg class="ic" viewBox="0 0 24 24"><path d="M12 3 3 7.6l9 4.6 9-4.6z"/><path d="M3 12.4 12 17l9-4.6M3 16.8 12 21.4l9-4.6"/></svg>
   </button>
-  <button class="fab" id="fPin" aria-label="Drop a pin">
-    <svg class="ic" viewBox="0 0 24 24"><path d="M12 21s7-6.2 7-11a7 7 0 1 0-14 0c0 4.8 7 11 7 11z"/><circle cx="12" cy="10" r="2.4"/></svg>
-  </button>
+  <div class="zoompill">
+    <button id="fZoomIn" aria-label="Zoom in">
+      <svg class="ic" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button>
+    <span class="hr"></span>
+    <button id="fZoomOut" aria-label="Zoom out">
+      <svg class="ic" viewBox="0 0 24 24"><path d="M5 12h14"/></svg></button>
+  </div>
   <button class="fab" id="fLoc" aria-label="Recenter">
     <svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.4"/><circle cx="12" cy="12" r="8"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2"/></svg>
   </button>
@@ -567,8 +577,10 @@ const $=i=>document.getElementById(i);
 
 const S={me:null,heading:null,headOn:false,dest:null,destName:'',origin:'me',
   stations:[],saved:[],taps:[],markers:[],poiMk:[],entMk:[],meMk:null,destMk:null,
-  selStn:null,trip:null,tab:'near',busy:false,state:'mid',tipDone:false,
-  ent:{},chip:null};
+  selStn:null,trip:null,tab:'near',busy:false,state:'mid',tipDone:false,ent:{},
+  allStn:[],cityOn:true,focus:null,zooming:false,userMoved:false,moveT:null,
+  alerts:[],recents:[],loos:[],looMk:[],looOn:false,alarm:null,
+  nav:null,navCoords:null,style:'standard',filters:{},lastFeats:[],entCache:null};
 
 /* ── TOAST ── */
 let tT;
@@ -590,8 +602,7 @@ function initMap(){
     map.on(ev,()=>{clearTimeout(S.moveT);S.moveT=setTimeout(()=>{S.userMoved=false},25000)}));
   map.on('error',()=>{if(!mapOK)fallback()});
   map.on('rotate',()=>{const b=map.getBearing();
-    const el=$('fCompass').querySelector('.ic');
-    if(el)el.style.transform=`rotate(${-b}deg)`});
+    const el=$('fFilters');if(el)el.style.setProperty('--bear',(-b)+'deg')});
   setTimeout(()=>{if(!mapOK)fallback()},8000);
 }
 function fallback(){
@@ -625,7 +636,7 @@ const STYLES={
     attr:'Imagery © Esri'}
 };
 function applyStyle(key){
-  if(!mapOK||key===S.style)return;
+  if(!mapOK||key===S.style){openLayers();return}
   S.style=key;const st=STYLES[key];
   const restore=()=>{
     routeLayer();
@@ -640,8 +651,7 @@ function applyStyle(key){
     map.setStyle({version:8,sources:{sat:{type:'raster',tiles:[st.raster],tileSize:256,
       attribution:st.attr,maxzoom:19}},layers:[{id:'sat',type:'raster',source:'sat'}]});
   } else map.setStyle(st.url);
-  put('style',key);
-  document.body.classList.toggle('dark-map',key==='satellite');
+  put('style',key);openLayers();
 }
 
 /* ── FILTERS ── */
@@ -657,24 +667,26 @@ function applyFilters(){
 }
 function openLayers(){
   const p=$('sheetLayers');
+  const row=(label,on,fn,sub)=>`<button class="tgl" onclick="${fn}">
+    <span class="tl">${label}${sub?`<em>${sub}</em>`:''}</span>
+    <span class="sw2${on?' on':''}"><i></i></span></button>`;
   p.innerHTML=`<div class="lpanel">
-    <div class="lhdr"><b>Map</b><button onclick="closeLayers()">${ico('x','s')}</button></div>
+    <div class="lgrab"></div>
+    <div class="lhdr"><b>Map style</b><button onclick="closeLayers()">${ico('x','s')}</button></div>
     <div class="styles">${Object.entries(STYLES).map(([k,v])=>
-      `<button class="sty${S.style===k?' on':''}" onclick="applyStyle('${k}');openLayers()">
+      `<button class="sty${S.style===k?' on':''}" onclick="applyStyle('${k}')">
         <span class="sw ${k}"></span>${v.label}</button>`).join('')}</div>
-    <div class="lhdr" style="margin-top:6px"><b>Show on map</b></div>
-    ${FILTERS.map(f=>`<button class="tgl" onclick="toggleFilter('${f.k}')">
-      <span>${f.label}</span><span class="sw2${S.filters[f.k]===false?'':' on'}"><i></i></span></button>`).join('')}
-    <button class="tgl" onclick="toggleLoosFromPanel()">
-      <span>Public restrooms</span><span class="sw2${S.looOn?' on':''}"><i></i></span></button>
+    <div class="lhdr"><b>Show on map</b></div>
+    ${row('Subway stations',S.filters.stations!==false,"toggleFilter('stations')")}
+    ${row('Station entrances',S.filters.entrances!==false,"toggleFilter('entrances')",'Stairs, escalators, elevators')}
+    ${row('Public restrooms',S.looOn,'toggleLoosFromPanel()')}
+    ${row('Route line',S.filters.route!==false,"toggleFilter('route')")}
+    ${row('Compass heading',S.headOn,'toggleHeadingFromPanel()','Shows which way you face')}
   </div>`;
   p.classList.add('open');
+  p.onclick=e=>{if(e.target===p)closeLayers()};
 }
-function closeLayers(){$('sheetLayers').classList.remove('open')}
-function toggleFilter(k){
-  S.filters[k]=S.filters[k]===false;
-  put('filters',S.filters);applyFilters();openLayers();
-}
+async function toggleHeadingFromPanel(){await toggleHeading();openLayers()}
 async function toggleLoosFromPanel(){await toggleLoos();openLayers()}
 
 /* ── CITYWIDE SUBWAY LAYER ──
@@ -749,7 +761,6 @@ function toggleCity(){
   S.cityOn=!S.cityOn;
   ['cityStnHalo','cityStnDot','cityStnLabel','cityEntDot','cityEntLabel'].forEach(id=>{
     if(mapOK&&map.getLayer(id))map.setLayoutProperty(id,'visibility',S.cityOn?'visible':'none')});
-  $('fLayers').classList.toggle('on',S.cityOn);
   toast(S.cityOn?'Showing every station and entrance':'Subway layer hidden');
 }
 /* real platform sign wording, matched by position */
@@ -837,7 +848,7 @@ async function put(k,v){
 let lw=null;
 function locate(recenter){
   if(!navigator.geolocation){toast("This browser can't share location");return}
-  $('fLoc').classList.add('on');
+  const lb=$('fLoc');if(lb)lb.classList.add('on');
   if(lw!==null)navigator.geolocation.clearWatch(lw);
   /* one-shot: a recenter request applies to the NEXT fix only, never to the
      stream of updates that follows. Otherwise the map fights you as you move. */
@@ -858,7 +869,7 @@ function locate(recenter){
     checkAlarm();updateNav();maybeReroute();
     if(first){fetchNearby();S.dest?plan():renderTrip()}
   },err=>{
-    $('fLoc').classList.remove('on');
+    const lb2=$('fLoc');if(lb2)lb2.classList.remove('on');
     toast(err.code===1?'Location is off — enable it in Settings':'No GPS fix yet');
     if(S.tab==='near'&&!S.stations.length)fetchNearby();
   },{enableHighAccuracy:true,timeout:12000,maximumAge:20000});
@@ -901,14 +912,14 @@ async function enableHeading(silent){
   }catch(e){ if(!silent)toast('Compass unavailable on this device'); return; }
   addEventListener('deviceorientationabsolute',onOrient,true);
   addEventListener('deviceorientation',onOrient,true);
-  S.headOn=true;$('fCompass').classList.add('on');
+  S.headOn=true;
   if(!silent)toast('Compass on — the cone shows which way you face');
 }
 async function toggleHeading(){
   if(S.headOn){
     removeEventListener('deviceorientation',onOrient);
     removeEventListener('deviceorientationabsolute',onOrient);
-    S.headOn=false;$('fCompass').classList.remove('on');
+    S.headOn=false;
     if(S.meMk){const el=S.meMk.getElement().querySelector('.mk-me');if(el)el.classList.remove('head')}
     if(mapOK)map.easeTo({bearing:0});
     toast('Compass off');return;
@@ -969,7 +980,7 @@ async function stationsNear(lat,lng){
 }
 async function fetchNearby(){
   const at=S.me||{lat:HOTEL.lat,lng:HOTEL.lng};
-  if(!S.stations.length)$('p-near').innerHTML=hotelCard()+'<div class="skel"></div><div class="skel"></div>';
+  if(!S.stations.length)$('p-near').innerHTML=hotelRow()+'<div class="skel"></div><div class="skel"></div>';
   try{
     S.stations=await stationsNear(at.lat,at.lng);
     renderNearby();plotStations();renderPeek();loadEntrances();
@@ -1344,11 +1355,17 @@ function focusCard(){
 function routeToFocus(){if(S.focus)setDest(S.focus.lat,S.focus.lng,S.focus.name)}
 
 /* ── NEARBY ── */
-function hotelCard(){
+function hotelCard(){          /* full card — Saved tab */
   return `<div class="hotel"><div class="r1">${ico('hotel','l')}
     <div><b>${HOTEL.name}</b><em>${HOTEL.addr} · ${HOTEL.stay}</em></div></div>
     <div class="acts"><button class="go" onclick="goHotel()">${ico('route','s')}Directions</button>
     <a href="tel:${HOTEL.phone}">${ico('phone','s')}Call</a></div></div>`;
+}
+function hotelRow(){           /* one-liner — Nearby tab */
+  return `<button class="homerow" onclick="goHotel()">
+    <span class="pico">${ico('hotel','s')}</span>
+    <span class="m"><b>Back to the hotel</b><em>${HOTEL.addr}</em></span>
+    ${ico('route','s')}</button>`;
 }
 function goHotel(){setDest(HOTEL.lat,HOTEL.lng,HOTEL.short)}
 
@@ -1370,15 +1387,11 @@ function renderPeek(){
 
 function renderNearby(){
   const at=S.me||{lat:HOTEL.lat,lng:HOTEL.lng};
-  let h=hotelCard()+alarmCard()+alertsCard()+focusCard();
+  let h=alertsCard()+alarmCard()+focusCard()+hotelRow();
   if(!S.stations.length){
     $('p-near').innerHTML=h+`<div class="empty">${ico('train')}<b>No stations found</b>
       <p>Nothing nearby, or train times haven't loaded yet.</p></div>`;return;
   }
-  const seen=new Set();
-  S.stations.slice(0,5).forEach(st=>routesAt(st).forEach(r=>seen.add(r)));
-  if(seen.size)h+=`<div class="hdr"><h3>Lines you can reach</h3></div>
-    <div class="lines">${[...seen].sort().map(r=>blt(r)).join('')}</div>`;
   h+=`<div class="hdr"><h3>Nearest stations</h3><button onclick="fetchNearby()">Refresh</button></div>`;
   S.stations.slice(0,5).forEach((st,i)=>{
     h+=`<div class="stn${S.selStn===i?' sel':''}">
@@ -1400,8 +1413,7 @@ function renderNearby(){
       <button onclick="routeToStation(${i})">${ico('walk','s')}Walk here</button>
       <button onclick="armAlarm(${st.location[0]},${st.location[1]},'${st.name.replace(/'/g,"\\'")}')">${ico('bell','s')}Wake me here</button></div></div>`;
   });
-  h+=loosCard();
-  h+=`<div class="note">Live MTA times, refreshing every 45 seconds. You'll have signal on the platform but usually not between stations — if times freeze mid-tunnel, that's normal.</div>`;
+  h+=`<div class="note">Live MTA times, refreshing every 45 seconds. Times freeze between stations — that's normal, there's no signal in most tunnels.</div>`;
   $('p-near').innerHTML=h;
 }
 function plotStations(){
@@ -1473,18 +1485,13 @@ function clearDest(){
   if(S.destMk){S.destMk.remove();S.destMk=null}
   drawFeatures([]);renderTrip();
 }
-$('fPin').onclick=()=>{if(!mapOK)return;const c=map.getCenter();
-  setDest(c.lat,c.lng,'Dropped pin');toast('Pin dropped at map centre')};
 $('fLoc').onclick=()=>{
   if(S.trip&&S.dest&&S.userMoved){fitTrip();toast('Route fitted to screen');return}
   locate(true);if(S.tab==='near')fetchNearby();
 };
-$('fCompass').onclick=toggleHeading;
-$('fLayers').onclick=toggleCity;
 $('fFilters').onclick=openLayers;
 $('fZoomIn').onclick=()=>{if(mapOK)map.zoomTo(map.getZoom()+1,{duration:220})};
 $('fZoomOut').onclick=()=>{if(mapOK)map.zoomTo(map.getZoom()-1,{duration:220})};
-$('fLayers').classList.add('on');
 
 /* ── ROUTING ── */
 async function valhalla(f,t,costing){
@@ -1795,6 +1802,7 @@ function renderSaved(){
       <span class="m"><b>${s.name}</b><em>${s.lat.toFixed(4)}, ${s.lng.toFixed(4)}</em></span></button>
       <button class="del" onclick="delSaved(${i})">${ico('x','s')}</button></div>`});
   }
+  h+=recentsCard();
   h+=`<div class="note">Everything here stays on this device — everyone you share the link with keeps their own list and their own fare count.</div>`;
   $('p-save').innerHTML=h;
 }
@@ -1834,7 +1842,7 @@ g.addEventListener('touchend',()=>{
 Object.assign(window,{locate,goHotel,fetchNearby,setOrigin,clearDest,saveDest,saveHere,
   goSaved,delSaved,addTap,undoTap,hideTip,selectStation,routeToStation,
   focusStation,clearFocus,routeToFocus,toggleCity,fitTrip,
-  toggleLoos,armAlarm,cancelAlarm,goRecent,clearRecents,setDest,
+  toggleLoos,armAlarm,cancelAlarm,goRecent,clearRecents,setDest,toggleHeadingFromPanel,
   startNav,stopNav,openLayers,closeLayers,applyStyle,toggleFilter,toggleLoosFromPanel});
 
 /* ── BOOT ── */
