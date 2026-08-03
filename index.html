@@ -371,6 +371,19 @@ body.peek #tabs,body.peek #body{display:none}
   animation:sh 1.3s linear infinite;border:1px solid var(--line)}
 @keyframes sh{to{background-position:-200% 0}}
 
+#permcard{position:absolute;left:10px;right:10px;bottom:calc(var(--sh) + 14px);z-index:58;
+  display:none;align-items:center;gap:12px;background:var(--paper);border-radius:14px;
+  padding:13px 14px;box-shadow:0 6px 26px rgba(17,24,39,.24);
+  transition:bottom .32s cubic-bezier(.32,.72,0,1)}
+#permcard.show{display:flex}
+#permcard>.ic{color:var(--blue);flex:0 0 auto}
+#permcard .m{flex:1;min-width:0}
+#permcard .m b{display:block;font-size:14px;font-weight:600}
+#permcard .m span{display:block;font-size:12.5px;color:var(--ink3);margin-top:1px}
+#permGo{background:var(--blue);color:#fff;border-radius:9px;height:38px;padding:0 15px;
+  font-size:13px;font-weight:600;flex:0 0 auto}
+#permNo{color:var(--ink3);font-size:22px;line-height:1;padding:4px 2px;flex:0 0 auto}
+
 /* navigation banner */
 #navbar{position:absolute;top:0;left:0;right:0;z-index:55;display:none;
   align-items:center;gap:14px;background:#1A73E8;color:#fff;
@@ -500,6 +513,12 @@ body.nav #top,body.nav #scrim{display:none}
   <div class="c"><b class="txt">Starting…</b><span class="sub"></span></div>
   <button class="stop" onclick="stopNav()">End</button>
 </div>
+<div id="permcard">
+  <svg class="ic l" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M15.4 8.6l-2 4.8-4.8 2 2-4.8z"/></svg>
+  <div class="m"><b>Turn on the compass</b><span>Shows which way you're facing</span></div>
+  <button id="permGo">Enable</button>
+  <button id="permNo" aria-label="Dismiss">&times;</button>
+</div>
 <div id="sheetLayers"></div>
 <div id="toast"></div>
 
@@ -580,7 +599,8 @@ const S={me:null,heading:null,headOn:false,dest:null,destName:'',origin:'me',
   selStn:null,trip:null,tab:'near',busy:false,state:'mid',tipDone:false,ent:{},
   allStn:[],cityOn:true,focus:null,zooming:false,userMoved:false,moveT:null,
   alerts:[],recents:[],loos:[],looMk:[],looOn:false,alarm:null,
-  nav:null,navCoords:null,style:'standard',filters:{},lastFeats:[],entCache:null};
+  nav:null,navCoords:null,style:'standard',filters:{},lastFeats:[],entCache:null,
+  compassAsked:false};
 
 /* ── TOAST ── */
 let tT;
@@ -685,6 +705,11 @@ function openLayers(){
   </div>`;
   p.classList.add('open');
   p.onclick=e=>{if(e.target===p)closeLayers()};
+}
+function closeLayers(){const p=$('sheetLayers');if(p)p.classList.remove('open')}
+function toggleFilter(k){
+  S.filters[k]=S.filters[k]===false;
+  put('filters',S.filters);applyFilters();openLayers();
 }
 async function toggleHeadingFromPanel(){await toggleHeading();openLayers()}
 async function toggleLoosFromPanel(){await toggleLoos();openLayers()}
@@ -893,14 +918,14 @@ function onOrient(e){
 function autoCompass(){
   const needsGesture = typeof DeviceOrientationEvent!=='undefined'
     && typeof DeviceOrientationEvent.requestPermission==='function';
-  if(!needsGesture){ enableHeading(true); return; }
-  const arm=()=>{
-    document.removeEventListener('touchend',arm);
-    document.removeEventListener('click',arm);
-    enableHeading(true);
-  };
-  document.addEventListener('touchend',arm,{once:true,passive:true});
-  document.addEventListener('click',arm,{once:true});
+  if(!needsGesture){ enableHeading(true); return; }   // Android/desktop: just turn it on
+  if(S.compassAsked) return;
+  const card=$('permcard'); if(!card) return;
+  card.classList.add('show');
+  $('permGo').onclick=async()=>{ card.classList.remove('show');
+    S.compassAsked=true; put('compassAsked',true); await enableHeading(false); };
+  $('permNo').onclick=()=>{ card.classList.remove('show');
+    S.compassAsked=true; put('compassAsked',true); };
 }
 async function enableHeading(silent){
   if(S.headOn)return;
@@ -1321,7 +1346,7 @@ async function focusStation(lat,lng,name){
   }catch(e){S.focus.data=null}
   S.focus.loading=false;renderNearby();
   const el=$('p-near').querySelector('.stn');
-  if(el)el.scrollIntoView({block:'start',behavior:'smooth'});
+  if(el&&el.scrollIntoView)el.scrollIntoView({block:'start',behavior:'smooth'});
 }
 function clearFocus(){S.focus=null;renderNearby()}
 function focusCard(){
@@ -1434,7 +1459,7 @@ function selectStation(i,fly){
   if(mapOK&&st)map.easeTo({center:[st.location[1],st.location[0]],
     zoom:map.getZoom()<14?15.8:map.getZoom()});
   if(!fly){const el=$('p-near').querySelectorAll('.stn')[i];
-    if(el)el.scrollIntoView({block:'center',behavior:'smooth'})}
+    if(el&&el.scrollIntoView)el.scrollIntoView({block:'center',behavior:'smooth'})}
 }
 function routeToStation(i){
   const st=S.stations[i];
@@ -1854,10 +1879,12 @@ Object.assign(window,{locate,goHotel,fetchNearby,setOrigin,clearDest,saveDest,sa
   S.tipDone=await get('tipDone',false);
   S.recents=await get('recents',[]);
   S.filters=await get('filters',{});
+  S.compassAsked=await get('compassAsked',false);
   const sty=await get('style','standard');
   if(sty!=='standard'&&mapOK)applyStyle(sty); else S.style=sty;
   renderSaved();
-  fetchNearby();locate(false);autoCompass();loadAlerts();
+  fetchNearby();locate(false);loadAlerts();
+  setTimeout(autoCompass,900);
   setInterval(loadAlerts,180000);
   setInterval(()=>{if(S.tab==='near'||S.state==='peek')fetchNearby()},45000);
   setInterval(()=>{if(S.state==='peek')renderPeek()},15000);
