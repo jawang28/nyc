@@ -73,8 +73,8 @@ svg{display:block;flex:0 0 auto}
 
 /* ── FLOATING CONTROLS ── */
 .fabs{position:absolute;right:12px;bottom:calc(var(--sh) + 14px);z-index:35;
-  display:flex;flex-direction:column;gap:10px;transition:bottom .32s cubic-bezier(.32,.72,0,1)}
-.fab{width:46px;height:46px;border-radius:50%;background:var(--paper);color:var(--ink);
+  display:flex;flex-direction:column;gap:8px;transition:bottom .32s cubic-bezier(.32,.72,0,1)}
+.fab{width:44px;height:44px;border-radius:50%;background:var(--paper);color:var(--ink);
   display:flex;align-items:center;justify-content:center;
   box-shadow:0 2px 5px rgba(17,24,39,.18),0 6px 16px rgba(17,24,39,.12)}
 .fab:active{background:var(--wash2)}
@@ -365,6 +365,12 @@ body.peek #tabs,body.peek #body{display:none}
   <button class="fab" id="fCompass" aria-label="Compass">
     <svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M15.4 8.6l-2 4.8-4.8 2 2-4.8z"/></svg>
   </button>
+  <button class="fab" id="fZoomIn" aria-label="Zoom in">
+    <svg class="ic" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
+  </button>
+  <button class="fab" id="fZoomOut" aria-label="Zoom out">
+    <svg class="ic" viewBox="0 0 24 24"><path d="M5 12h14"/></svg>
+  </button>
   <button class="fab" id="fLayers" aria-label="Toggle subway layer">
     <svg class="ic" viewBox="0 0 24 24"><path d="M12 3 3 7.6l9 4.6 9-4.6z"/><path d="M3 12.4 12 17l9-4.6M3 16.8 12 21.4l9-4.6"/></svg>
   </button>
@@ -463,6 +469,12 @@ function initMap(){
     style:'https://tiles.openfreemap.org/styles/bright',
     center:[HOTEL.lng,HOTEL.lat],zoom:14.6,attributionControl:{compact:true}});
   map.on('load',ready);
+  map.on('zoomstart',()=>{S.zooming=true});
+  map.on('zoomend',()=>{setTimeout(()=>{S.zooming=false},150)});
+  ['dragstart','zoomstart','rotatestart','pitchstart'].forEach(ev=>
+    map.on(ev,()=>{S.userMoved=true;clearTimeout(S.moveT);}));
+  ['dragend','zoomend','rotateend'].forEach(ev=>
+    map.on(ev,()=>{clearTimeout(S.moveT);S.moveT=setTimeout(()=>{S.userMoved=false},25000)}));
   map.on('error',()=>{if(!mapOK)fallback()});
   map.on('rotate',()=>{const b=map.getBearing();
     const el=$('fCompass').querySelector('.ic');
@@ -601,18 +613,31 @@ function makeMe(){
   S.meMk=mk(S.me.lng,S.me.lat,'<div class="mk-me"><div class="cone"></div><div class="dot"></div></div>');
 }
 function longPress(){
-  const c=map.getCanvas();let tm=null,sx=0,sy=0,ll=null;
+  const c=map.getCanvas();
+  let tm=null,sx=0,sy=0,ll=null,multi=false;
   const rel=p=>{const r=c.getBoundingClientRect();return[p.clientX-r.left,p.clientY-r.top]};
-  const go=(x,y,pt)=>{sx=x;sy=y;ll=pt;tm=setTimeout(()=>{tm=null;
-    if(navigator.vibrate)try{navigator.vibrate(18)}catch(e){}
-    setDest(ll.lat,ll.lng,'Dropped pin')},520)};
-  const mv=(x,y)=>{if(tm&&(Math.abs(x-sx)>12||Math.abs(y-sy)>12)){clearTimeout(tm);tm=null}};
   const end=()=>{if(tm){clearTimeout(tm);tm=null}};
-  c.addEventListener('touchstart',e=>{if(e.touches.length!==1)return end();
-    const t=e.touches[0];go(t.clientX,t.clientY,map.unproject(rel(t)))},{passive:true});
-  c.addEventListener('touchmove',e=>{const t=e.touches[0];if(t)mv(t.clientX,t.clientY)},{passive:true});
-  c.addEventListener('touchend',end,{passive:true});
-  c.addEventListener('touchcancel',end,{passive:true});
+  const go=(x,y,pt)=>{
+    sx=x;sy=y;ll=pt;
+    tm=setTimeout(()=>{
+      tm=null;
+      if(multi||S.zooming)return;              // a pinch was in progress — never drop a pin
+      if(navigator.vibrate)try{navigator.vibrate(20)}catch(e){}
+      setDest(ll.lat,ll.lng,'Dropped pin');
+    },700);                                     // longer hold: 0.7s, not 0.52s
+  };
+  const mv=(x,y)=>{if(tm&&(Math.abs(x-sx)>8||Math.abs(y-sy)>8)){end()}};  // tighter wobble tolerance
+  c.addEventListener('touchstart',e=>{
+    if(e.touches.length>1){multi=true;end();return}
+    multi=false;
+    const t=e.touches[0];go(t.clientX,t.clientY,map.unproject(rel(t)));
+  },{passive:true});
+  c.addEventListener('touchmove',e=>{
+    if(e.touches.length>1){multi=true;end();return}
+    const t=e.touches[0];if(t)mv(t.clientX,t.clientY);
+  },{passive:true});
+  c.addEventListener('touchend',e=>{end();if(e.touches.length===0)setTimeout(()=>{multi=false},120)},{passive:true});
+  c.addEventListener('touchcancel',()=>{multi=false;end()},{passive:true});
   c.addEventListener('mousedown',e=>go(e.clientX,e.clientY,map.unproject(rel(e))));
   c.addEventListener('mousemove',e=>mv(e.clientX,e.clientY));
   c.addEventListener('mouseup',end);
@@ -638,7 +663,8 @@ function locate(recenter){
     const first=!S.me;
     S.me={lat:p.coords.latitude,lng:p.coords.longitude};
     if(S.meMk)S.meMk.setLngLat([S.me.lng,S.me.lat]);else makeMe();
-    if((first||recenter)&&mapOK)map.easeTo({center:[S.me.lng,S.me.lat],zoom:15.6});
+    if((recenter||(first&&!S.userMoved))&&mapOK)
+      map.easeTo({center:[S.me.lng,S.me.lat],zoom:Math.max(map.getZoom(),15.6)});
     if(first){fetchNearby();S.dest?plan():renderTrip()}
   },err=>{
     $('fLoc').classList.remove('on');
@@ -835,7 +861,7 @@ async function focusStation(lat,lng,name){
   setTab('near');snap('mid');
   S.focus={name,lat,lng,data:null,loading:true};
   renderNearby();
-  if(mapOK)map.easeTo({center:[lng,lat],zoom:16.4});
+  if(mapOK)map.easeTo({center:[lng,lat],zoom:Math.max(map.getZoom(),16.2)});
   try{
     const list=await stationsNear(lat,lng);
     let best=null,bd=Infinity;
@@ -951,7 +977,8 @@ function selectStation(i,fly){
   if(S.selStn===null)return;
   const st=S.stations[i];
   setTab('near');snap('mid');
-  if(mapOK&&st)map.easeTo({center:[st.location[1],st.location[0]],zoom:16.6});
+  if(mapOK&&st)map.easeTo({center:[st.location[1],st.location[0]],
+    zoom:Math.max(map.getZoom(),16.2)});
   if(!fly){const el=$('p-near').querySelectorAll('.stn')[i];
     if(el)el.scrollIntoView({block:'center',behavior:'smooth'})}
 }
@@ -1006,9 +1033,14 @@ function clearDest(){
 }
 $('fPin').onclick=()=>{if(!mapOK)return;const c=map.getCenter();
   setDest(c.lat,c.lng,'Dropped pin');toast('Pin dropped at map centre')};
-$('fLoc').onclick=()=>{locate(true);if(S.tab==='near')fetchNearby()};
+$('fLoc').onclick=()=>{
+  if(S.trip&&S.dest&&S.userMoved){fitTrip();toast('Route fitted to screen');return}
+  locate(true);if(S.tab==='near')fetchNearby();
+};
 $('fCompass').onclick=toggleHeading;
 $('fLayers').onclick=toggleCity;
+$('fZoomIn').onclick=()=>{if(mapOK)map.zoomTo(map.getZoom()+1,{duration:220})};
+$('fZoomOut').onclick=()=>{if(mapOK)map.zoomTo(map.getZoom()-1,{duration:220})};
 $('fLayers').classList.add('on');
 
 /* ── ROUTING ── */
@@ -1112,12 +1144,19 @@ async function drawTrip(){
     if(cw)feats.push(line(cw,'#1A73E8',false));
   }
   drawFeatures(feats);
-  const all=feats.flatMap(x=>x.geometry.coordinates);
-  if(all.length)try{
-    map.fitBounds(all.reduce((x,p)=>x.extend(p),new maplibregl.LngLatBounds(all[0],all[0])),
-      {padding:{top:140,bottom:Math.round(innerHeight*.55),left:48,right:48}})}catch(e){}
+  if(S.userMoved){toast('Route drawn — tap ⌖ to fit it on screen');return}
+  fitTrip();
 }
 
+function fitTrip(){
+  if(!mapOK)return;
+  const src=map.getSource('rt');if(!src||!src._data)return;
+  const all=(src._data.features||[]).flatMap(f=>f.geometry.coordinates);
+  if(!all.length)return;
+  try{map.fitBounds(all.reduce((x,p)=>x.extend(p),new maplibregl.LngLatBounds(all[0],all[0])),
+    {padding:{top:140,bottom:Math.round(innerHeight*.55),left:48,right:48}})}catch(e){}
+  S.userMoved=false;
+}
 function tripPts(){
   const f=from();
   return `<div class="seg">
@@ -1318,7 +1357,7 @@ g.addEventListener('touchend',()=>{
 
 Object.assign(window,{locate,goHotel,fetchNearby,setOrigin,clearDest,saveDest,saveHere,
   goSaved,delSaved,addTap,undoTap,hideTip,selectStation,routeToStation,
-  focusStation,clearFocus,routeToFocus,toggleCity});
+  focusStation,clearFocus,routeToFocus,toggleCity,fitTrip});
 
 /* ── BOOT ── */
 (async function boot(){
