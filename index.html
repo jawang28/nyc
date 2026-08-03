@@ -599,7 +599,7 @@ const S={me:null,heading:null,headOn:false,dest:null,destName:'',origin:'me',
   selStn:null,trip:null,tab:'near',busy:false,state:'mid',tipDone:false,ent:{},
   allStn:[],cityOn:true,focus:null,zooming:false,userMoved:false,moveT:null,
   alerts:[],recents:[],loos:[],looMk:[],looOn:false,alarm:null,
-  nav:null,navCoords:null,style:'standard',filters:{},lastFeats:[],entCache:null,
+  nav:null,navCoords:null,rIdx:null,style:'standard',filters:{},lastFeats:[],entCache:null,
   compassAsked:false};
 
 /* ── TOAST ── */
@@ -1554,50 +1554,115 @@ function poly(s){let i=0,la=0,ln=0,o=[],sh,re,by;
   return o}
 const shapeCoords=r=>(r&&r.coords&&r.coords.length)?r.coords:null;
 
-/* transit plan: find a shared line between a station near you and one near the destination */
+/* ── TRANSIT ROUTER ──
+   Direct rides and one-transfer trips, built from the citywide station list.
+   Also works out the intermediate stops so we can show a stop count and draw
+   the ride along the actual line rather than a straight hop. */
+function routeIndex(){
+  if(S.rIdx)return S.rIdx;
+  const byRoute={};
+  S.allStn.forEach(s=>s.routes.forEach(r=>{(byRoute[r]=byRoute[r]||[]).push(s)}));
+  S.rIdx=byRoute;return byRoute;
+}
+function nearestCity(lat,lng,n){
+  return S.allStn.map(s=>({s,mi:hav(lat,lng,s.lat,s.lng)}))
+    .sort((a,b)=>a.mi-b.mi).slice(0,n||4);
+}
+/* stations on `route` lying between A and B, in travel order */
+function stopsBetween(route,A,B){
+  const list=(routeIndex()[route]||[]);
+  const ax=A.lng,ay=A.lat,bx=B.lng,by=B.lat;
+  const dx=bx-ax,dy=by-ay,len2=dx*dx+dy*dy;
+  if(!len2)return [];
+  return list.map(s=>{
+    const t=((s.lng-ax)*dx+(s.lat-ay)*dy)/len2;
+    const px=ax+t*dx,py=ay+t*dy;
+    return {s,t,off:hav(s.lat,s.lng,py,px)};
+  }).filter(x=>x.t>-0.02&&x.t<1.02&&x.off<0.45)
+    .sort((a,b)=>a.t-b.t).map(x=>x.s);
+}
+const RIDE_MPH=17, XFER_SEC=240, DWELL=25;
+function rideSec(a,b,stops){
+  return hav(a.lat,a.lng,b.lat,b.lng)/RIDE_MPH*3600 + Math.max(0,(stops||0))*DWELL;
+}
+function legFor(route,A,B){
+  const chain=stopsBetween(route,A,B);
+  const stops=Math.max(1,chain.length-1);
+  return {route,from:A,to:B,chain,stops,sec:rideSec(A,B,stops),
+    north:B.lat>A.lat};
+}
 async function planTransit(f,d){
   const crow=hav(f.lat,f.lng,d.lat,d.lng);
-  if(crow<.5)return null;
-  let oList=S.stations,dList=[];
-  try{
-    if(!oList.length)oList=await stationsNear(f.lat,f.lng);
-    dList=await stationsNear(d.lat,d.lng);
-  }catch(e){return null}
-  if(!oList.length||!dList.length)return null;
-
+  if(crow<0.4||!S.allStn.length)return null;
+  const O=nearestCity(f.lat,f.lng,5), D=nearestCity(d.lat,d.lng,5);
+  if(!O.length||!D.length)return null;
+  const idx=routeIndex();
   let best=null;
-  oList.slice(0,5).forEach(o=>{
-    const oR=routesAt(o);
-    dList.slice(0,5).forEach(x=>{
-      if(o.name===x.name)return;
-      const shared=[...routesAt(x)].filter(r=>oR.has(r));
-      if(!shared.length)return;
-      const w1=wSec(f.lat,f.lng,o.location[0],o.location[1]);
-      const w2=wSec(x.location[0],x.location[1],d.lat,d.lng);
-      const score=w1+w2;
-      if(!best||score<best.score)best={score,o,x,shared,w1,w2};
+  const consider=(cand)=>{ if(!best||cand.total<best.total)best=cand };
+
+  O.forEach(({s:o,mi:w1mi})=>{
+    if(w1mi>0.9)return;
+    const w1=w1mi*1.32/3.1*3600;
+    D.forEach(({s:x,mi:w2mi})=>{
+      if(w2mi>0.9||x.name===o.name)return;
+      const w2=w2mi*1.32/3.1*3600;
+
+      /* direct */
+      o.routes.filter(r=>x.routes.includes(r)).forEach(r=>{
+        const leg=legFor(r,o,x);
+        consider({legs:[leg],board:o,alight:x,w1,w2,total:w1+leg.sec+w2,xfers:0});
+      });
+
+      /* one transfer */
+      o.routes.forEach(r1=>{
+        if(x.routes.includes(r1))return;
+        x.routes.forEach(r2=>{
+          const hubs=(idx[r1]||[]).filter(h=>h.routes.includes(r2));
+          let bh=null,bd=Infinity;
+          hubs.forEach(h=>{
+            const dd=hav(o.lat,o.lng,h.lat,h.lng)+hav(h.lat,h.lng,x.lat,x.lng);
+            if(dd<bd){bd=dd;bh=h}
+          });
+          if(!bh)return;
+          const detour=bd/Math.max(0.2,hav(o.lat,o.lng,x.lat,x.lng));
+          if(detour>1.9)return;                       // silly backtracking
+          const l1=legFor(r1,o,bh), l2=legFor(r2,bh,x);
+          consider({legs:[l1,l2],board:o,alight:x,w1,w2,
+            total:w1+l1.sec+XFER_SEC+l2.sec+w2,xfers:1,hub:bh});
+        });
+      });
     });
   });
   if(!best)return null;
 
-  const northbound=best.x.location[0]>best.o.location[0];
-  const dirKey=northbound?'N':'S';
-  const sg=signLabels(best.o.location[0],best.o.location[1]);
-  const dirLabel=(sg&&(northbound?sg.n:sg.s))||(northbound?'Uptown':'Downtown');
-  const next=(best.o[dirKey]||[])
-    .filter(t=>best.shared.includes(t.route))
-    .map(t=>({r:t.route,s:minsOf(t.time)*60}))
-    .filter(t=>t.s>-30).sort((a,b)=>a.s-b.s)[0];
+  /* live departure for the first leg, from the MTA feed */
+  let wait=300,liveRoute=best.legs[0].route;
+  try{
+    const feed=await stationsNear(best.board.lat,best.board.lng);
+    let m=null,md=Infinity;
+    feed.forEach(st=>{const dd=hav(best.board.lat,best.board.lng,st.location[0],st.location[1]);
+      if(dd<md){md=dd;m=st}});
+    if(m&&md<0.2){
+      const key=best.legs[0].north?'N':'S';
+      const nx=(m[key]||[]).filter(t=>t.route===liveRoute)
+        .map(t=>({r:t.route,s:minsOf(t.time)*60})).filter(t=>t.s>-30).sort((a,b)=>a.s-b.s)[0]
+        || (m[key]||[]).map(t=>({r:t.route,s:minsOf(t.time)*60}))
+             .filter(t=>t.s>-30&&best.board.routes.includes(t.r)).sort((a,b)=>a.s-b.s)[0];
+      if(nx){wait=Math.max(0,nx.s);liveRoute=nx.r}
+      best.live=m;
+    }
+  }catch(e){}
 
-  const route=next?next.r:best.shared[0];
-  const wait=next?Math.max(0,next.s):300;
-  const ride=hav(best.o.location[0],best.o.location[1],best.x.location[0],best.x.location[1])/17*3600+60;
-  await fetchEnt(best.o);
-  const ent=bestEntrance(f,best.o);
-
-  return {board:best.o,alight:best.x,route,shared:best.shared,dirLabel,northbound,
-    w1:best.w1,w2:best.w2,wait,ride,ent,
-    total:best.w1+wait+ride+best.w2};
+  await fetchEnt({name:best.board.name,location:[best.board.lat,best.board.lng]});
+  const ent=bestEntrance(f,{name:best.board.name,location:[best.board.lat,best.board.lng]});
+  const sg=signLabels(best.board.lat,best.board.lng);
+  const l0=best.legs[0];
+  return {...best,wait,liveRoute,ent,
+    route:l0.route, northbound:l0.north,
+    dirLabel:(sg&&(l0.north?sg.n:sg.s))||(l0.north?'Uptown':'Downtown'),
+    shared:[...new Set(best.legs.map(l=>l.route))],
+    total:best.total+wait,
+    ride:best.legs.reduce((a,l)=>a+l.sec,0)+(best.xfers?XFER_SEC:0)};
 }
 
 async function plan(quiet){
@@ -1618,13 +1683,16 @@ async function drawTrip(quiet){
   const t=S.trip;if(!t||!mapOK)return;
   const f=t.f,d=S.dest,feats=[];
   if(t.tr){
-    const legA=await valhalla(f,{lat:t.tr.ent?t.tr.ent.lat:t.tr.board.location[0],
-      lng:t.tr.ent?t.tr.ent.lng:t.tr.board.location[1]},'pedestrian').catch(()=>null);
-    const legB=await valhalla({lat:t.tr.alight.location[0],lng:t.tr.alight.location[1]},d,'pedestrian').catch(()=>null);
+    const legA=await valhalla(f,{lat:t.tr.ent?t.tr.ent.lat:t.tr.board.lat,
+      lng:t.tr.ent?t.tr.ent.lng:t.tr.board.lng},'pedestrian').catch(()=>null);
+    const legB=await valhalla({lat:t.tr.alight.lat,lng:t.tr.alight.lng},d,'pedestrian').catch(()=>null);
     const ca=legA&&shapeCoords(legA), cb=legB&&shapeCoords(legB);
     if(ca)feats.push(line(ca,'#5F6368',true));
-    feats.push(line([[t.tr.board.location[1],t.tr.board.location[0]],
-      [t.tr.alight.location[1],t.tr.alight.location[0]]],LINES[t.tr.route]||'#1A73E8',false));
+    t.tr.legs.forEach(leg=>{
+      const pts=(leg.chain&&leg.chain.length>1?leg.chain:[leg.from,leg.to])
+        .map(s=>[s.lng,s.lat]);
+      feats.push(line(pts,LINES[leg.route]||'#1A73E8',false));
+    });
     if(cb)feats.push(line(cb,'#5F6368',true));
   }else{
     const cw=shapeCoords(t.w);
@@ -1661,25 +1729,46 @@ function tripPts(){
 function setOrigin(o){S.origin=o;S.dest?plan():renderTrip()}
 
 function itinerary(tr,d){
-  const c=LINES[tr.route]||'#1A73E8';
-  const entTxt=tr.ent?`${ENT_LABEL[tr.ent.type]||tr.ent.type}`:'the station entrance';
-  let t0=0;
-  const rows=[];
+  const rows=[];let t0=0;
+  const sign=(s,north)=>{const g=signLabels(s.lat,s.lng);
+    return (g&&(north?g.n:g.s))||(north?'Uptown':'Downtown')};
+  const entTxt=tr.ent?(ENT_LABEL[tr.ent.type]||tr.ent.type):null;
+
   rows.push(`<div class="leg"><div class="rail">
       <span class="node start">${ico('walk','s')}</span><span class="stem dash"></span></div>
     <div class="c"><b>Walk to ${tr.board.name}</b>
-      <p>${Math.round(tr.w1/60)} min · head for the <b>${entTxt}</b>${tr.ent?` — it's the closest way in`:''}</p></div>
+      <p>${Math.round(tr.w1/60)} min${entTxt?` · head for the <b>${entTxt}</b>, the closest way in`:''}</p></div>
     <span class="time">${clock(t0)}</span></div>`);
   t0+=tr.w1;
-  rows.push(`<div class="leg"><div class="rail">
-      <span class="node" style="background:${c};color:${DARK.includes(tr.route)?'#000':'#fff'};font-weight:700;font-size:12px">${tr.route}</span>
-      <span class="stem solid" style="--legcolor:${c}"></span></div>
-    <div class="c"><b>Board the ${blt(tr.route,'sm')} at ${tr.board.name}</b>
-      <div class="plat">${ico(tr.northbound?'up':'down','s')}
-        <span>Follow the signs to <b>${tr.dirLabel}</b><em>That's the ${tr.northbound?'northbound':'southbound'} platform — the sign wording above is what's printed at this station</em></span></div>
-      <p style="margin-top:9px">Next train in ${Math.round(tr.wait/60)} min · about ${Math.round(tr.ride/60)} min on board${tr.shared.length>1?` · ${tr.shared.filter(r=>r!==tr.route).map(r=>blt(r,'sm')).join(' ')} also work`:''}</p></div>
-    <span class="time">${clock(t0)}</span></div>`);
-  t0+=tr.wait+tr.ride;
+
+  tr.legs.forEach((leg,i)=>{
+    const c=LINES[leg.route]||'#1A73E8';
+    const lab=sign(leg.from,leg.north);
+    const isFirst=i===0;
+    const alts=isFirst?tr.board.routes.filter(r=>r!==leg.route&&
+      leg.to.routes&&leg.to.routes.includes(r)):[];
+    rows.push(`<div class="leg"><div class="rail">
+        <span class="node" style="background:${c};color:${DARK.includes(leg.route)?'#000':'#fff'};font-weight:700;font-size:12px">${leg.route}</span>
+        <span class="stem solid" style="--legcolor:${c}"></span></div>
+      <div class="c"><b>${isFirst?'Board':'Transfer to'} the ${blt(leg.route,'sm')} at ${leg.from.name}</b>
+        <div class="plat">${ico(leg.north?'up':'down','s')}
+          <span>Follow signs to <b>${lab}</b>
+          <em>${leg.north?'Northbound':'Southbound'} platform · ride ${leg.stops} stop${leg.stops===1?'':'s'} to ${leg.to.name}</em></span></div>
+        <p style="margin-top:9px">${isFirst?`Next train in ${Math.round(tr.wait/60)} min · `:''}about ${Math.round(leg.sec/60)} min on board${alts.length?` · ${alts.slice(0,3).map(r=>blt(r,'sm')).join(' ')} also work`:''}</p>
+        ${leg.chain&&leg.chain.length>2?`<details class="steps" style="margin:9px 0 0"><summary style="padding:11px 12px;font-size:13.5px">${ico('train','s')}Stops on the way<span class="cnt">${leg.stops}</span></summary>
+          ${leg.chain.map((s,j)=>`<div class="step"><span class="n">${j+1}</span><span class="t">${s.name}</span></div>`).join('')}</details>`:''}
+      </div>
+      <span class="time">${clock(t0)}</span></div>`);
+    t0+=(isFirst?tr.wait:XFER_SEC)+leg.sec;
+    if(i<tr.legs.length-1){
+      rows.push(`<div class="leg"><div class="rail">
+          <span class="node">${ico('walk','s')}</span><span class="stem dash"></span></div>
+        <div class="c"><b>Change at ${leg.to.name}</b>
+          <p>Walk to the ${blt(tr.legs[i+1].route,'sm')} platform · allow about ${Math.round(XFER_SEC/60)} min</p></div>
+        <span class="time">${clock(t0)}</span></div>`);
+    }
+  });
+
   rows.push(`<div class="leg"><div class="rail">
       <span class="node">${ico('walk','s')}</span><span class="stem dash"></span></div>
     <div class="c"><b>Get off at ${tr.alight.name}</b>
@@ -1687,11 +1776,10 @@ function itinerary(tr,d){
     <span class="time">${clock(t0)}</span></div>`);
   t0+=tr.w2;
   rows.push(`<div class="leg"><div class="rail"><span class="node end">${ico('flag','s')}</span></div>
-    <div class="c"><b>${d}</b><p>Arrive · ${Math.round(tr.total/60)} min total · $${FARE.toFixed(2)}</p></div>
+    <div class="c"><b>${d}</b><p>Arrive · ${Math.round(tr.total/60)} min total · $${FARE.toFixed(2)}${tr.xfers?' · 1 transfer':' · no transfers'}</p></div>
     <span class="time">${clock(t0)}</span></div>`);
   return `<div class="itin">${rows.join('')}</div>`;
 }
-
 function stepsCard(res,label){
   const st=(res&&res.steps)||[];
   if(st.length<2)return '';
@@ -1729,15 +1817,15 @@ function renderTrip(){
   if(t.tr){
     h+=`<div class="hdr"><h3>Best way there</h3></div>`;
     h+=`<button class="mode train${fastest==='train'?' hi':''}"><span class="badge">${ico('train')}</span>
-      <span class="m"><b>Subway ${blt(t.tr.route,'sm')}</b>
-      <em>Toward ${t.tr.dirLabel} · from ${t.tr.board.name}</em></span>
+      <span class="m"><b>${t.tr.legs.map(l=>blt(l.route,'sm')).join(' <span style=\"color:var(--ink3)\">›</span> ')}</b>
+      <em>${t.tr.board.name} → ${t.tr.alight.name} · ${t.tr.xfers?'1 transfer':'direct'}</em></span>
       <span class="n"><b>${fm(t.tr.total)}</b><span>$${FARE.toFixed(2)}</span></span></button>`;
     const ra=alertsFor([t.tr.route,...t.tr.shared]);
     if(ra.length)h+=`<div class="alert${ra[0].bad?' bad':''}">${ico('warn')}<div class="m">
       <div class="rts">${ra[0].routes.slice(0,6).map(r=>blt(r,'sm')).join('')}</div>
       <b>${ra[0].head}</b>${ra[0].body?`<p class="clip">${ra[0].body}</p>`:''}</div></div>`;
     h+=itinerary(t.tr,S.destName);
-    if(!S.alarm)h+=`<button class="btn ghost sm" onclick="armAlarm(${t.tr.alight.location[0]},${t.tr.alight.location[1]},'${t.tr.alight.name.replace(/'/g,"\\'")}')">${ico('bell','s')}Wake me at ${t.tr.alight.name}</button>`;
+    if(!S.alarm)h+=`<button class="btn ghost sm" onclick="armAlarm(${t.tr.alight.lat},${t.tr.alight.lng},'${t.tr.alight.name.replace(/'/g,"\\'")}')">${ico('bell','s')}Wake me at ${t.tr.alight.name}</button>`;
     h+=`<div class="hdr"><h3>Other options</h3></div>`;
   }
   h+=`<div class="mode walk${fastest==='walk'?' hi':''}"><span class="badge">${ico('walk')}</span>
