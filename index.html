@@ -286,6 +286,62 @@ body.peek #tabs,body.peek #body{display:none}
 .tip .m p{margin:0;font-size:12.5px;color:#41618F;line-height:1.5}
 .tip .del{color:#5B7CAD;padding:4px;margin:-4px}
 
+/* alerts */
+.alert{display:flex;gap:12px;background:#FFF8E6;border:1px solid #F3DFAE;
+  border-radius:var(--r);padding:13px 14px;margin-bottom:9px;align-items:flex-start}
+.alert.bad{background:var(--red-wash);border-color:#F5C9C5}
+.alert .ic{color:#B26A00;margin-top:1px}
+.alert.bad .ic{color:#C5221F}
+.alert .m{flex:1;min-width:0}
+.alert .m .rts{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:6px}
+.alert .m b{display:block;font-size:13.5px;font-weight:600;line-height:1.35;color:#5C3D00}
+.alert.bad .m b{color:#8C2018}
+.alert .m p{margin:4px 0 0;font-size:12.5px;color:#7A5A22;line-height:1.5}
+.alert.bad .m p{color:#A34A42}
+.alert .m p.clip{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.alert .more{font-size:12.5px;font-weight:600;color:var(--blue);margin-top:6px}
+
+/* walking steps */
+.steps{background:var(--paper);border:1px solid var(--line);border-radius:var(--r);
+  margin-bottom:11px;overflow:hidden;box-shadow:0 1px 3px rgba(17,24,39,.06)}
+.steps>summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:12px;
+  padding:14px 15px;font-size:14.5px;font-weight:600}
+.steps>summary::-webkit-details-marker{display:none}
+.steps>summary .ic{color:var(--ink3)}
+.steps>summary .cnt{margin-left:auto;font-size:12.5px;color:var(--ink3);font-weight:500}
+.steps[open]>summary{border-bottom:1px solid var(--line)}
+.step{display:flex;gap:13px;padding:11px 15px;border-bottom:1px solid var(--line);
+  align-items:flex-start}
+.step:last-child{border-bottom:0}
+.step .n{width:22px;height:22px;border-radius:50%;background:var(--wash2);color:var(--ink2);
+  display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex:0 0 auto}
+.step .t{flex:1;min-width:0;font-size:13.5px;line-height:1.45}
+.step .d{font-size:12px;color:var(--ink3);flex:0 0 auto;font-variant-numeric:tabular-nums;
+  padding-top:2px}
+
+/* alarm */
+.alarm{display:flex;gap:12px;background:var(--green-wash);border:1px solid #B7DFC4;
+  border-radius:var(--r);padding:14px;margin-bottom:11px;align-items:center}
+.alarm .ic{color:var(--green)}
+.alarm .m{flex:1;min-width:0}
+.alarm .m b{display:block;font-size:14px;font-weight:600;color:#0B4F22}
+.alarm .m em{font-style:normal;display:block;font-size:12.5px;color:#2E6B45;margin-top:2px}
+.alarm button{background:var(--green);color:#fff;border-radius:9px;height:38px;padding:0 15px;
+  font-size:13px;font-weight:600;flex:0 0 auto}
+
+/* recents + restrooms chips */
+.rowbtn{display:flex;align-items:center;gap:13px;background:var(--paper);
+  border:1px solid var(--line);border-radius:var(--r);padding:13px 15px;margin-bottom:8px;
+  width:100%;text-align:left;box-shadow:0 1px 3px rgba(17,24,39,.06)}
+.rowbtn:active{background:var(--wash)}
+.rowbtn .pico{width:34px;height:34px;border-radius:50%;background:var(--wash2);color:var(--ink2);
+  display:flex;align-items:center;justify-content:center;flex:0 0 auto}
+.rowbtn .m{flex:1;min-width:0}
+.rowbtn .m b{display:block;font-size:14.5px;font-weight:600;white-space:nowrap;
+  overflow:hidden;text-overflow:ellipsis}
+.rowbtn .m em{font-style:normal;display:block;font-size:12px;color:var(--ink3);margin-top:2px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rowbtn .d{font-size:13px;font-weight:600;color:var(--ink2);flex:0 0 auto}
 .note{font-size:12px;color:var(--ink3);line-height:1.55;padding:4px 3px 18px}
 .warn{background:var(--red-wash);border:1px solid #F5C9C5;border-radius:var(--r);
   padding:14px 15px;margin-bottom:10px}
@@ -448,7 +504,11 @@ up:'<path d="M12 19V5M6 11l6-6 6 6"/>',
 down:'<path d="M12 5v14M18 13l-6 6-6-6"/>',
 flag:'<path d="M5 21V4h13l-2.4 4L18 12H5"/>',
 info:'<circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 7.8h.01"/>',
-compass:'<circle cx="12" cy="12" r="9"/><path d="M15.4 8.6l-2 4.8-4.8 2 2-4.8z"/>'};
+compass:'<circle cx="12" cy="12" r="9"/><path d="M15.4 8.6l-2 4.8-4.8 2 2-4.8z"/>',
+warn:'<path d="M12 3.6 21.2 20H2.8z"/><path d="M12 10v4.4M12 17.4h.01"/>',
+bell:'<path d="M18 9a6 6 0 1 0-12 0c0 5-2.2 6.4-2.2 6.4h16.4S18 14 18 9z"/><path d="M13.7 19.4a2 2 0 0 1-3.4 0"/>',
+loo:'<circle cx="7.6" cy="4.6" r="1.8"/><circle cx="16.4" cy="4.6" r="1.8"/><path d="M5.4 20V8.6h4.4V20M14.2 20l-.9-6h3.9l1.4 6M14.6 8h3.6l1.6 5"/>',
+history:'<path d="M3.6 12a8.4 8.4 0 1 0 2.6-6.1"/><path d="M3.4 4.6v4.2h4.2M12 7.6V12l3 1.8"/>'};
 const ico=(k,c)=>`<svg class="ic ${c||''}" viewBox="0 0 24 24">${I[k]||''}</svg>`;
 const $=i=>document.getElementById(i);
 
@@ -675,6 +735,7 @@ function locate(recenter){
         map.easeTo({center:[S.me.lng,S.me.lat],zoom:15.6});  // only the very first fix
       }
     }
+    checkAlarm();
     if(first){fetchNearby();S.dest?plan():renderTrip()}
   },err=>{
     $('fLoc').classList.remove('on');
@@ -866,6 +927,185 @@ function plotEntrances(idx){
   });
 }
 
+/* ── LIVE SERVICE ALERTS ── */
+const txt=o=>{ if(!o)return ''; if(typeof o==='string')return o;
+  const t=(o.translation||[])[0]; return (t&&(t.text||t.Text))||''; };
+async function loadAlerts(){
+  try{
+    const j=await relayJSON('https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/camsys%2Fsubway-alerts.json',9000);
+    const now=Date.now()/1000;
+    const ents=j.entity||j.Entity||[];
+    S.alerts=ents.map(e=>{
+      const a=e.alert||e.Alert; if(!a)return null;
+      const per=a.active_period||a.activePeriod||[];
+      const live=!per.length||per.some(p=>{
+        const s=+(p.start||0),en=+(p.end||0);
+        return (!s||s<=now)&&(!en||en>=now)});
+      if(!live)return null;
+      const routes=[...new Set((a.informed_entity||a.informedEntity||[])
+        .map(x=>x.route_id||x.routeId).filter(r=>r&&LINES[r]))];
+      if(!routes.length)return null;
+      const head=txt(a.header_text||a.headerText).replace(/\s+/g,' ').trim();
+      if(!head)return null;
+      const body=txt(a.description_text||a.descriptionText).replace(/<[^>]*>/g,' ')
+        .replace(/\s+/g,' ').trim();
+      const bad=/suspend|no service|not running|no .{0,12}trains|bypass|skip|closed|reroute/i.test(head);
+      return {routes,head,body,bad};
+    }).filter(Boolean);
+  }catch(e){S.alerts=[];console.warn('alerts',e.message)}
+  if(S.tab==='near')renderNearby();
+}
+function alertsFor(routes){
+  if(!S.alerts.length||!routes||!routes.length)return [];
+  const set=new Set(routes);
+  return S.alerts.filter(a=>a.routes.some(r=>set.has(r)));
+}
+function nearbyRoutes(){
+  const s=new Set();
+  S.stations.slice(0,5).forEach(st=>routesAt(st).forEach(r=>s.add(r)));
+  return [...s];
+}
+function alertsCard(){
+  const list=alertsFor(nearbyRoutes());
+  if(!list.length)return '';
+  const show=list.slice(0,4);
+  return `<div class="hdr"><h3>Service alerts on your lines</h3></div>`+
+    show.map((a,i)=>`<div class="alert${a.bad?' bad':''}">${ico('warn')}
+      <div class="m"><div class="rts">${a.routes.slice(0,6).map(r=>blt(r,'sm')).join('')}</div>
+      <b>${a.head}</b>${a.body?`<p class="clip">${a.body}</p>`:''}</div></div>`).join('')+
+    (list.length>show.length?`<div class="note">+${list.length-show.length} more alerts on nearby lines.</div>`:'');
+}
+
+/* ── PUBLIC RESTROOMS ── */
+function coordOf(r){
+  let la=+(r.latitude||r.lat), ln=+(r.longitude||r.lon||r.lng);
+  if(isNaN(la)||isNaN(ln)){
+    const g=r.location_point||r.georeference||r.the_geom;
+    const c=g&&g.coordinates; if(c){ln=+c[0];la=+c[1]}
+    else if(typeof g==='string'){const m=g.match(/-?\d+\.\d+/g);if(m&&m.length>1){ln=+m[0];la=+m[1]}}
+  }
+  return (isNaN(la)||isNaN(ln))?null:{lat:la,lng:ln};
+}
+async function loadLoos(){
+  if(S.loos.length)return S.loos;
+  for(const id of ['vzrx-zg6z','i7jb-7jku']){
+    try{
+      const r=await fetch(`https://data.cityofnewyork.us/resource/${id}.json?$limit=1200`);
+      if(!r.ok)continue;
+      const j=await r.json();
+      const out=[];
+      j.forEach(x=>{
+        const c=coordOf(x); if(!c)return;
+        const st=(x.status||'').toLowerCase();
+        if(st&&!/operational|open/.test(st))return;
+        out.push({...c,name:x.facility_name||x.name||x.location_type||'Public restroom',
+          hours:x.hours_of_operation||x.open_year_round||'',
+          ada:/full|yes/i.test(x.accessibility||x.ada||'')});
+      });
+      if(out.length){S.loos=out;return out}
+    }catch(e){}
+  }
+  return S.loos;
+}
+async function toggleLoos(){
+  S.looOn=!S.looOn;
+  if(!S.looOn){S.looMk.forEach(m=>m.remove());S.looMk=[];renderNearby();return}
+  const at=S.me||{lat:HOTEL.lat,lng:HOTEL.lng};
+  await loadLoos();
+  if(!S.loos.length){S.looOn=false;toast('Restroom data unavailable right now');renderNearby();return}
+  const near=nearestLoos(at,8);
+  S.looMk.forEach(m=>m.remove());S.looMk=[];
+  near.forEach(l=>S.looMk.push(mk(l.lng,l.lat,`<div class="mk-pin poi">${ico('loo')}</div>`,
+    ()=>setDest(l.lat,l.lng,l.name))));
+  renderNearby();
+}
+function nearestLoos(at,n){
+  return S.loos.map(l=>({...l,mi:hav(at.lat,at.lng,l.lat,l.lng)}))
+    .sort((a,b)=>a.mi-b.mi).slice(0,n||3);
+}
+function loosCard(){
+  const at=S.me||{lat:HOTEL.lat,lng:HOTEL.lng};
+  let h=`<div class="hdr"><h3>Public restrooms</h3>
+    <button onclick="toggleLoos()">${S.looOn?'Hide':'Show nearest'}</button></div>`;
+  if(!S.looOn)return h+`<div class="note">City-run restrooms nearby, from NYC Open Data. Hours vary and some are seasonal.</div>`;
+  const near=nearestLoos(at,4);
+  if(!near.length)return h+`<div class="note">Couldn't load restroom data.</div>`;
+  h+=near.map(l=>`<button class="rowbtn" onclick="setDest(${l.lat},${l.lng},'${l.name.replace(/'/g,"\\'")}')">
+    <span class="pico">${ico('loo','s')}</span>
+    <span class="m"><b>${l.name}</b><em>${l.hours||'Hours vary'}${l.ada?' · accessible':''}</em></span>
+    <span class="d">${Math.max(1,Math.round(l.mi*1.32/3.1*60))} min</span></button>`).join('');
+  return h+`<div class="note">Availability isn't live — a restroom may be closed for maintenance.</div>`;
+}
+
+/* ── WAKE ME AT MY STOP ── */
+function armAlarm(lat,lng,name){
+  S.alarm={lat,lng,name,fired:false};
+  if('Notification' in window && Notification.permission==='default')
+    Notification.requestPermission().catch(()=>{});
+  toast(`Alarm set for ${name}`);
+  renderNearby();renderTrip();
+}
+function cancelAlarm(){S.alarm=null;toast('Alarm cancelled');renderNearby();renderTrip()}
+function checkAlarm(){
+  const a=S.alarm;if(!a||a.fired||!S.me)return;
+  const mi=hav(S.me.lat,S.me.lng,a.lat,a.lng);
+  if(mi<0.28){ a.fired=true; fireAlarm(a.name); }
+}
+function fireAlarm(name){
+  try{navigator.vibrate&&navigator.vibrate([300,120,300,120,600])}catch(e){}
+  try{
+    const C=window.AudioContext||window.webkitAudioContext;
+    if(C){const c=new C();
+      [0,.45,.9].forEach(t=>{const os=c.createOscillator(),g=c.createGain();
+        os.connect(g);g.connect(c.destination);os.frequency.value=880;
+        g.gain.setValueAtTime(.001,c.currentTime+t);
+        g.gain.exponentialRampToValueAtTime(.35,c.currentTime+t+.04);
+        g.gain.exponentialRampToValueAtTime(.001,c.currentTime+t+.34);
+        os.start(c.currentTime+t);os.stop(c.currentTime+t+.36)});}
+  }catch(e){}
+  try{if('Notification' in window&&Notification.permission==='granted')
+    new Notification('Your stop is next',{body:name+' — get ready to get off.'})}catch(e){}
+  toast('⏰ '+name+' — your stop!');
+  alarmBanner(name);
+}
+function alarmBanner(name){
+  const d=document.createElement('div');
+  d.style.cssText='position:absolute;inset:auto 12px calc(var(--sh) + 78px) 12px;z-index:70;'+
+    'background:#137333;color:#fff;border-radius:14px;padding:16px 18px;font-weight:600;'+
+    'box-shadow:0 10px 30px rgba(17,24,39,.4);display:flex;gap:12px;align-items:center';
+  d.innerHTML=`<span style="font-size:22px">⏰</span><span style="flex:1">Your stop — ${name}</span>
+    <button style="background:rgba(255,255,255,.22);color:#fff;border-radius:9px;padding:9px 13px;font-weight:600">OK</button>`;
+  d.querySelector('button').onclick=()=>d.remove();
+  document.body.appendChild(d);
+  setTimeout(()=>d.remove(),30000);
+}
+function alarmCard(){
+  if(!S.alarm)return '';
+  const mi=S.me?hav(S.me.lat,S.me.lng,S.alarm.lat,S.alarm.lng):null;
+  return `<div class="alarm">${ico('bell')}
+    <div class="m"><b>Alarm set — ${S.alarm.name}</b>
+    <em>${S.alarm.fired?'Already rang':mi!=null?`${mi.toFixed(1)} mi away · rings within 0.3 mi`:'Waiting for a GPS fix'}</em></div>
+    <button onclick="cancelAlarm()">Cancel</button></div>`;
+}
+
+/* ── RECENT DESTINATIONS ── */
+async function pushRecent(lat,lng,name){
+  if(!name||name==='Dropped pin')return;
+  S.recents=[{lat,lng,name,t:Date.now()},
+    ...S.recents.filter(r=>Math.abs(r.lat-lat)>1e-4||Math.abs(r.lng-lng)>1e-4)].slice(0,10);
+  await put('recents',S.recents);
+}
+function recentsCard(){
+  if(!S.recents.length)return '';
+  return `<div class="hdr"><h3>Recent</h3><button onclick="clearRecents()">Clear</button></div>`+
+    S.recents.slice(0,6).map((r,i)=>`<button class="rowbtn" onclick="goRecent(${i})">
+      <span class="pico">${ico('history','s')}</span>
+      <span class="m"><b>${r.name}</b><em>${new Date(r.t).toLocaleDateString('en-US',{weekday:'short'})} ${new Date(r.t).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'})}</em></span>
+      </button>`).join('');
+}
+function goRecent(i){const r=S.recents[i];setDest(r.lat,r.lng,r.name)}
+async function clearRecents(){S.recents=[];await put('recents',[]);renderTrip()}
+
 /* ── TAP ANY STATION, ANYWHERE ── */
 async function focusStation(lat,lng,name){
   setTab('near');snap('mid');
@@ -907,7 +1147,8 @@ function focusCard(){
       h+=`</div>`;
     });
   }
-  h+=`<div class="foot"><button onclick="routeToFocus()">${ico('walk','s')}Directions here</button></div></div>`;
+  h+=`<div class="foot"><button onclick="routeToFocus()">${ico('walk','s')}Directions here</button>
+    <button onclick="armAlarm(${f.lat},${f.lng},'${f.name.replace(/'/g,"\\'")}')">${ico('bell','s')}Wake me here</button></div></div>`;
   return h;
 }
 function routeToFocus(){if(S.focus)setDest(S.focus.lat,S.focus.lng,S.focus.name)}
@@ -939,7 +1180,7 @@ function renderPeek(){
 
 function renderNearby(){
   const at=S.me||{lat:HOTEL.lat,lng:HOTEL.lng};
-  let h=hotelCard()+focusCard();
+  let h=hotelCard()+alarmCard()+alertsCard()+focusCard();
   if(!S.stations.length){
     $('p-near').innerHTML=h+`<div class="empty">${ico('train')}<b>No stations found</b>
       <p>Nothing nearby, or train times haven't loaded yet.</p></div>`;return;
@@ -966,9 +1207,10 @@ function renderNearby(){
       h+=`</div>`;
     });
     h+=`<div class="foot">
-      <button onclick="selectStation(${i})">${ico('pin','s')}Show entrances</button>
-      <button onclick="routeToStation(${i})">${ico('walk','s')}Walk here</button></div></div>`;
+      <button onclick="routeToStation(${i})">${ico('walk','s')}Walk here</button>
+      <button onclick="armAlarm(${st.location[0]},${st.location[1]},'${st.name.replace(/'/g,"\\'")}')">${ico('bell','s')}Wake me here</button></div></div>`;
   });
+  h+=loosCard();
   h+=`<div class="note">Live MTA times, refreshing every 45 seconds. You'll have signal on the platform but usually not between stations — if times freeze mid-tunnel, that's normal.</div>`;
   $('p-near').innerHTML=h;
 }
@@ -1034,7 +1276,7 @@ function placeDest(){
 function setDest(lat,lng,name){
   S.dest={lat,lng};S.destName=name||'Dropped pin';
   rE.style.display='none';qE.value='';xE.style.display='none';qE.blur();
-  placeDest();setTab('trip');snap('mid');plan();
+  placeDest();pushRecent(lat,lng,S.destName);setTab('trip');snap('mid');plan();
 }
 function clearDest(){
   S.dest=null;S.destName='';S.trip=null;
@@ -1064,11 +1306,14 @@ async function valhalla(f,t,costing){
     const j=await r.json();
     if(!j.trip||!j.trip.summary)throw 0;
     return{sec:j.trip.summary.time,mi:j.trip.summary.length,
-      shape:(j.trip.legs||[]).map(l=>l.shape).filter(Boolean)};
+      shape:(j.trip.legs||[]).map(l=>l.shape).filter(Boolean),
+      steps:(j.trip.legs||[]).flatMap(l=>l.maneuvers||[])
+        .map(m=>({txt:m.instruction||'',mi:m.length||0,sec:m.time||0}))
+        .filter(m=>m.txt)};
   }finally{clearTimeout(tm)}
 }
 const guess=(f,t,mph)=>{const mi=hav(f.lat,f.lng,t.lat,t.lng)*1.32;
-  return{sec:mi/mph*3600,mi,shape:null,est:true}};
+  return{sec:mi/mph*3600,mi,shape:null,est:true,steps:[]}};
 function poly(s){let i=0,la=0,ln=0,o=[],sh,re,by;
   while(i<s.length){sh=0;re=0;
     do{by=s.charCodeAt(i++)-63;re|=(by&31)<<sh;sh+=5}while(by>=32);
@@ -1214,13 +1459,24 @@ function itinerary(tr,d){
   return `<div class="itin">${rows.join('')}</div>`;
 }
 
+function stepsCard(res,label){
+  const st=(res&&res.steps)||[];
+  if(st.length<2)return '';
+  return `<details class="steps"><summary>${ico('walk')}${label}
+    <span class="cnt">${st.length} steps</span></summary>
+    ${st.map((m,i)=>`<div class="step"><span class="n">${i+1}</span>
+      <span class="t">${m.txt}</span>
+      <span class="d">${m.mi>=0.1?m.mi.toFixed(1)+' mi':Math.round(m.mi*5280)+' ft'}</span></div>`).join('')}
+  </details>`;
+}
 function renderTrip(){
   let h=tripPts();
   if(!S.dest){
     $('p-trip').innerHTML=h+
       `<button class="btn blue" onclick="goHotel()">${ico('route','s')}Directions to the hotel</button>
+       ${recentsCard()}
        <div class="empty">${ico('pin')}<b>Where to?</b>
-       <p>Search up top, tap a category chip, press and hold the map, or use the pin button.</p></div>`;
+       <p>Search up top, press and hold the map, or use the pin button on the right.</p></div>`;
     return;
   }
   if(!from()){
@@ -1231,6 +1487,7 @@ function renderTrip(){
     $('p-trip').innerHTML=h+'<div class="skel"></div><div class="skel"></div><div class="skel"></div>';return;
   }
   const t=S.trip,f=t.f,d=S.dest;
+  h+=alarmCard();
   const opts=[];
   if(t.tr)opts.push({k:'train',sec:t.tr.total});
   opts.push({k:'walk',sec:t.w.sec},{k:'bike',sec:t.b.sec},{k:'taxi',sec:t.c.sec});
@@ -1242,7 +1499,12 @@ function renderTrip(){
       <span class="m"><b>Subway ${blt(t.tr.route,'sm')}</b>
       <em>Toward ${t.tr.dirLabel} · from ${t.tr.board.name}</em></span>
       <span class="n"><b>${fm(t.tr.total)}</b><span>$${FARE.toFixed(2)}</span></span></button>`;
+    const ra=alertsFor([t.tr.route,...t.tr.shared]);
+    if(ra.length)h+=`<div class="alert${ra[0].bad?' bad':''}">${ico('warn')}<div class="m">
+      <div class="rts">${ra[0].routes.slice(0,6).map(r=>blt(r,'sm')).join('')}</div>
+      <b>${ra[0].head}</b>${ra[0].body?`<p class="clip">${ra[0].body}</p>`:''}</div></div>`;
     h+=itinerary(t.tr,S.destName);
+    if(!S.alarm)h+=`<button class="btn ghost sm" onclick="armAlarm(${t.tr.alight.location[0]},${t.tr.alight.location[1]},'${t.tr.alight.name.replace(/'/g,"\\'")}')">${ico('bell','s')}Wake me at ${t.tr.alight.name}</button>`;
     h+=`<div class="hdr"><h3>Other options</h3></div>`;
   }
   h+=`<div class="mode walk${fastest==='walk'?' hi':''}"><span class="badge">${ico('walk')}</span>
@@ -1255,6 +1517,7 @@ function renderTrip(){
     <span class="m"><b>Yellow cab</b><em>${t.fare.tags.length?t.fare.tags.join(' + '):'standard meter'} · before tip</em></span>
     <span class="n"><b>${fm(t.c.sec)}</b><span>$${t.fare.v.toFixed(2)}</span></span></div>`;
 
+  h+=stepsCard(t.w,'Walking directions');
   h+=`<button class="btn ghost sm" onclick="saveDest()">${ico('star','s')}Save this place</button>
     <div class="hdr"><h3>Open in another app</h3></div><div class="trio">
     <a href="https://m.uber.com/ul/?action=setPickup&pickup[latitude]=${f.lat}&pickup[longitude]=${f.lng}&dropoff[latitude]=${d.lat}&dropoff[longitude]=${d.lng}" target="_blank" rel="noopener"><button class="btn ghost sm">Uber</button></a>
@@ -1367,7 +1630,8 @@ g.addEventListener('touchend',()=>{
 
 Object.assign(window,{locate,goHotel,fetchNearby,setOrigin,clearDest,saveDest,saveHere,
   goSaved,delSaved,addTap,undoTap,hideTip,selectStation,routeToStation,
-  focusStation,clearFocus,routeToFocus,toggleCity,fitTrip});
+  focusStation,clearFocus,routeToFocus,toggleCity,fitTrip,
+  toggleLoos,armAlarm,cancelAlarm,goRecent,clearRecents,setDest});
 
 /* ── BOOT ── */
 (async function boot(){
@@ -1376,8 +1640,10 @@ Object.assign(window,{locate,goHotel,fetchNearby,setOrigin,clearDest,saveDest,sa
   S.saved=await get('places',[]);
   S.taps=await get('taps',[]);
   S.tipDone=await get('tipDone',false);
+  S.recents=await get('recents',[]);
   renderSaved();
-  fetchNearby();locate(false);autoCompass();
+  fetchNearby();locate(false);autoCompass();loadAlerts();
+  setInterval(loadAlerts,180000);
   setInterval(()=>{if(S.tab==='near'||S.state==='peek')fetchNearby()},45000);
   setInterval(()=>{if(S.state==='peek')renderPeek()},15000);
 })();
