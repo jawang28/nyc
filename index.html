@@ -356,6 +356,49 @@ body.peek #tabs,body.peek #body{display:none}
   animation:sh 1.3s linear infinite;border:1px solid var(--line)}
 @keyframes sh{to{background-position:-200% 0}}
 
+/* navigation banner */
+#navbar{position:absolute;top:0;left:0;right:0;z-index:55;display:none;
+  align-items:center;gap:14px;background:#1A73E8;color:#fff;
+  padding:calc(env(safe-area-inset-top) + 12px) 16px 14px;
+  box-shadow:0 6px 22px rgba(17,24,39,.3)}
+body.nav #navbar{display:flex}
+body.nav #top,body.nav #scrim{display:none}
+#navbar .turn{display:flex;flex-direction:column;align-items:center;gap:2px;flex:0 0 auto}
+#navbar .turn .dist{font-size:13px;font-weight:700;font-variant-numeric:tabular-nums}
+#navbar .c{flex:1;min-width:0}
+#navbar .c b{display:block;font-size:16px;font-weight:600;line-height:1.3;letter-spacing:-.015em}
+#navbar .c .sub{display:block;font-size:12.5px;opacity:.85;margin-top:3px}
+#navbar .stop{background:rgba(255,255,255,.2);color:#fff;border-radius:9px;
+  padding:9px 14px;font-size:13px;font-weight:600;flex:0 0 auto}
+
+/* layers / filters panel */
+#sheetLayers{position:absolute;inset:0;z-index:80;display:none;
+  background:rgba(17,24,39,.32);backdrop-filter:blur(2px)}
+#sheetLayers.open{display:block}
+.lpanel{position:absolute;left:10px;right:10px;bottom:calc(var(--safeb) + 12px);
+  background:var(--paper);border-radius:18px;padding:8px 14px 14px;
+  box-shadow:0 -6px 34px rgba(17,24,39,.28)}
+.lhdr{display:flex;align-items:center;justify-content:space-between;padding:10px 2px 8px}
+.lhdr b{font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--ink3)}
+.lhdr button{color:var(--ink3);padding:6px;margin:-6px}
+.styles{display:flex;gap:9px;margin-bottom:6px}
+.sty{flex:1;display:flex;flex-direction:column;align-items:center;gap:7px;
+  padding:9px 4px;border-radius:12px;border:2px solid transparent;font-size:12.5px;font-weight:600}
+.sty.on{border-color:var(--blue);background:var(--blue-wash)}
+.sty .sw{width:100%;height:44px;border-radius:9px;border:1px solid var(--line)}
+.sty .sw.standard{background:linear-gradient(140deg,#EAF0E6,#F7F3E8 50%,#DCE9F5)}
+.sty .sw.minimal{background:linear-gradient(140deg,#F2F2F2,#FAFAFA 50%,#E8EDF0)}
+.sty .sw.satellite{background:linear-gradient(140deg,#4A5B3C,#6B6250 50%,#2E4258)}
+.tgl{width:100%;display:flex;align-items:center;justify-content:space-between;
+  padding:13px 2px;font-size:14.5px;border-bottom:1px solid var(--line)}
+.tgl:last-child{border-bottom:0}
+.sw2{width:46px;height:28px;border-radius:99px;background:var(--wash2);position:relative;
+  transition:background .18s;flex:0 0 auto}
+.sw2.on{background:var(--blue)}
+.sw2 i{position:absolute;top:3px;left:3px;width:22px;height:22px;border-radius:50%;
+  background:#fff;box-shadow:0 1px 3px rgba(17,24,39,.3);transition:transform .18s}
+.sw2.on i{transform:translateX(18px)}
+
 #toast{position:absolute;left:50%;bottom:calc(var(--sh) + 22px);transform:translate(-50%,14px);
   z-index:60;background:#202124;color:#fff;border-radius:99px;padding:12px 20px;font-size:13.5px;
   box-shadow:0 8px 24px rgba(17,24,39,.35);opacity:0;pointer-events:none;
@@ -421,6 +464,9 @@ body.peek #tabs,body.peek #body{display:none}
   <button class="fab" id="fCompass" aria-label="Compass">
     <svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M15.4 8.6l-2 4.8-4.8 2 2-4.8z"/></svg>
   </button>
+  <button class="fab" id="fFilters" aria-label="Map layers and filters">
+    <svg class="ic" viewBox="0 0 24 24"><path d="M4 6.4h16M7 12h10M10 17.6h4"/></svg>
+  </button>
   <button class="fab" id="fZoomIn" aria-label="Zoom in">
     <svg class="ic" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
   </button>
@@ -438,6 +484,13 @@ body.peek #tabs,body.peek #body{display:none}
   </button>
 </div>
 
+<div id="navbar">
+  <div class="turn"><svg class="ic l" viewBox="0 0 24 24"><path d="M12 20V8.6M12 8.6 6.6 14M12 8.6 17.4 14"/></svg>
+    <span class="dist"></span></div>
+  <div class="c"><b class="txt">Starting…</b><span class="sub"></span></div>
+  <button class="stop" onclick="stopNav()">End</button>
+</div>
+<div id="sheetLayers"></div>
 <div id="toast"></div>
 
 <div id="sheet">
@@ -563,6 +616,67 @@ function ready(){
     if(S.selStn!==null){S.selStn=null;renderNearby();plotStations();plotEntrances(null)}
   });
 }
+/* ── MAP STYLES ── */
+const STYLES={
+  standard:{label:'Standard',url:'https://tiles.openfreemap.org/styles/bright'},
+  minimal :{label:'Minimal', url:'https://tiles.openfreemap.org/styles/positron'},
+  satellite:{label:'Satellite',raster:
+    'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+    attr:'Imagery © Esri'}
+};
+function applyStyle(key){
+  if(!mapOK||key===S.style)return;
+  S.style=key;const st=STYLES[key];
+  const restore=()=>{
+    routeLayer();
+    if(map.getSource('cityStn'))return;
+    addStationLayer();
+    if(S.entCache)addEntranceLayer(S.entCache);
+    drawFeatures(S.lastFeats||[]);
+    applyFilters();
+  };
+  map.once('styledata',()=>setTimeout(restore,60));
+  if(st.raster){
+    map.setStyle({version:8,sources:{sat:{type:'raster',tiles:[st.raster],tileSize:256,
+      attribution:st.attr,maxzoom:19}},layers:[{id:'sat',type:'raster',source:'sat'}]});
+  } else map.setStyle(st.url);
+  put('style',key);
+  document.body.classList.toggle('dark-map',key==='satellite');
+}
+
+/* ── FILTERS ── */
+const FILTERS=[
+  {k:'stations',label:'Subway stations',layers:['cityStnHalo','cityStnDot','cityStnLabel']},
+  {k:'entrances',label:'Station entrances',layers:['cityEntDot','cityEntLabel']},
+  {k:'route',label:'Route line',layers:['rtCase','rtLine','rtArrow']}
+];
+function applyFilters(){
+  if(!mapOK)return;
+  FILTERS.forEach(f=>f.layers.forEach(id=>{
+    if(map.getLayer(id))map.setLayoutProperty(id,'visibility',S.filters[f.k]===false?'none':'visible')}));
+}
+function openLayers(){
+  const p=$('sheetLayers');
+  p.innerHTML=`<div class="lpanel">
+    <div class="lhdr"><b>Map</b><button onclick="closeLayers()">${ico('x','s')}</button></div>
+    <div class="styles">${Object.entries(STYLES).map(([k,v])=>
+      `<button class="sty${S.style===k?' on':''}" onclick="applyStyle('${k}');openLayers()">
+        <span class="sw ${k}"></span>${v.label}</button>`).join('')}</div>
+    <div class="lhdr" style="margin-top:6px"><b>Show on map</b></div>
+    ${FILTERS.map(f=>`<button class="tgl" onclick="toggleFilter('${f.k}')">
+      <span>${f.label}</span><span class="sw2${S.filters[f.k]===false?'':' on'}"><i></i></span></button>`).join('')}
+    <button class="tgl" onclick="toggleLoosFromPanel()">
+      <span>Public restrooms</span><span class="sw2${S.looOn?' on':''}"><i></i></span></button>
+  </div>`;
+  p.classList.add('open');
+}
+function closeLayers(){$('sheetLayers').classList.remove('open')}
+function toggleFilter(k){
+  S.filters[k]=S.filters[k]===false;
+  put('filters',S.filters);applyFilters();openLayers();
+}
+async function toggleLoosFromPanel(){await toggleLoos();openLayers()}
+
 /* ── CITYWIDE SUBWAY LAYER ──
    Every station and every street entrance in the system, not just the ones near you. */
 const SOC='https://data.ny.gov/resource/';
@@ -613,6 +727,7 @@ function addStationLayer(){
   map.on('mouseleave','cityStnDot',()=>{map.getCanvas().style.cursor=''});
 }
 function addEntranceLayer(list){
+  S.entCache=list;
   if(!mapOK||!list.length||map.getSource('cityEnt'))return;
   map.addSource('cityEnt',{type:'geojson',data:fc(list.map(e=>({type:'Feature',
     geometry:{type:'Point',coordinates:[e.lng,e.lat]},
@@ -653,9 +768,14 @@ function routeLayer(){
   map.addLayer({id:'rtLine',type:'line',source:'rt',layout:{'line-cap':'round','line-join':'round'},
     paint:{'line-color':['coalesce',['get','color'],'#1A73E8'],'line-width':5,
       'line-dasharray':['case',['==',['get','dash'],1],['literal',[1.6,1.6]],['literal',[1,0]]]}});
+  map.addLayer({id:'rtArrow',type:'symbol',source:'rt',minzoom:14,
+    layout:{'symbol-placement':'line','symbol-spacing':70,'text-field':'▸','text-size':15,
+      'text-font':['Noto Sans Regular'],'text-allow-overlap':true,'text-keep-upright':false},
+    paint:{'text-color':'#FFFFFF','text-halo-color':'rgba(0,0,0,.35)','text-halo-width':1}});
 }
 const fc=f=>({type:'FeatureCollection',features:f});
 function drawFeatures(feats){
+  S.lastFeats=feats||[];
   if(!mapOK)return;routeLayer();
   map.getSource('rt').setData(fc(feats||[]));
 }
@@ -735,7 +855,7 @@ function locate(recenter){
         map.easeTo({center:[S.me.lng,S.me.lat],zoom:15.6});  // only the very first fix
       }
     }
-    checkAlarm();
+    checkAlarm();updateNav();maybeReroute();
     if(first){fetchNearby();S.dest?plan():renderTrip()}
   },err=>{
     $('fLoc').classList.remove('on');
@@ -925,6 +1045,76 @@ function plotEntrances(idx){
       `<div class="mk-ent${acc?' acc':''}${isBest?' best':''}">${ENT_L[e.type]||'D'}</div>`,
       ()=>toast(`${ENT_LABEL[e.type]||e.type}${isBest?' · closest to you':''}`)));
   });
+}
+
+/* ── LIVE RE-ROUTING ──
+   Recompute as you actually move, and snap back if you wander off the line. */
+let lastRouteAt=0,lastRoutePos=null;
+const FT=mi=>mi*5280;
+function distToRouteFt(){
+  const c=S.navCoords;
+  if(!c||!c.length||!S.me)return 0;
+  let best=Infinity;
+  for(let i=0;i<c.length;i++){
+    const d=hav(S.me.lat,S.me.lng,c[i][1],c[i][0]);
+    if(d<best)best=d;
+  }
+  return FT(best);
+}
+function maybeReroute(){
+  if(!S.dest||!S.me||S.origin!=='me'||S.busy)return;
+  const now=Date.now();
+  if(now-lastRouteAt<9000)return;
+  const movedFt=lastRoutePos?FT(hav(S.me.lat,S.me.lng,lastRoutePos.lat,lastRoutePos.lng)):1e9;
+  const offFt=distToRouteFt();
+  const off=S.navCoords&&offFt>230;
+  if(movedFt<160&&!off)return;
+  lastRouteAt=now;lastRoutePos={lat:S.me.lat,lng:S.me.lng};
+  if(off)toast('Off route — recalculating');
+  plan(true);
+}
+
+/* ── TURN-BY-TURN NAVIGATION ── */
+function startNav(){
+  const t=S.trip;
+  const leg=t&&t.tr?null:(t&&t.w);
+  const steps=(t&&t.w&&t.w.steps)||[];
+  if(!steps.length){toast('No step-by-step route available');return}
+  S.nav={steps,idx:0};
+  document.body.classList.add('nav');
+  if(!S.headOn)enableHeading(true);
+  if(mapOK)map.easeTo({center:[S.me?S.me.lng:S.dest.lng,S.me?S.me.lat:S.dest.lat],
+    zoom:17.4,pitch:55,duration:700});
+  snap('peek');updateNav();
+  toast('Navigation started — keep this screen on');
+}
+function stopNav(){
+  S.nav=null;document.body.classList.remove('nav');
+  if(mapOK)map.easeTo({pitch:0,duration:500});
+  snap('mid');renderTrip();
+}
+function updateNav(){
+  const n=S.nav;if(!n)return;
+  const b=$('navbar');if(!b)return;
+  if(!S.me){b.querySelector('.txt').textContent='Waiting for GPS…';return}
+  /* advance past any maneuver we've already passed */
+  while(n.idx<n.steps.length-1){
+    const s=n.steps[n.idx];
+    if(s.lat==null){n.idx++;continue}
+    if(FT(hav(S.me.lat,S.me.lng,s.lat,s.lng))<80){n.idx++;continue}
+    break;
+  }
+  const s=n.steps[n.idx];
+  const dFt=s&&s.lat!=null?FT(hav(S.me.lat,S.me.lng,s.lat,s.lng)):null;
+  const remain=n.steps.slice(n.idx).reduce((a,x)=>a+(x.sec||0),0);
+  b.querySelector('.dist').textContent=dFt==null?'':dFt>=1000?(dFt/5280).toFixed(1)+' mi':Math.round(dFt/10)*10+' ft';
+  b.querySelector('.txt').textContent=s?s.txt:'Arriving';
+  b.querySelector('.sub').textContent=
+    `${Math.max(1,Math.round(remain/60))} min left · step ${n.idx+1} of ${n.steps.length}`;
+  if(S.me&&mapOK&&document.body.classList.contains('nav')){
+    map.easeTo({center:[S.me.lng,S.me.lat],
+      bearing:S.heading!=null?S.heading:map.getBearing(),duration:600});
+  }
 }
 
 /* ── LIVE SERVICE ALERTS ── */
@@ -1291,6 +1481,7 @@ $('fLoc').onclick=()=>{
 };
 $('fCompass').onclick=toggleHeading;
 $('fLayers').onclick=toggleCity;
+$('fFilters').onclick=openLayers;
 $('fZoomIn').onclick=()=>{if(mapOK)map.zoomTo(map.getZoom()+1,{duration:220})};
 $('fZoomOut').onclick=()=>{if(mapOK)map.zoomTo(map.getZoom()-1,{duration:220})};
 $('fLayers').classList.add('on');
@@ -1305,15 +1496,23 @@ async function valhalla(f,t,costing){
     if(!r.ok)throw 0;
     const j=await r.json();
     if(!j.trip||!j.trip.summary)throw 0;
-    return{sec:j.trip.summary.time,mi:j.trip.summary.length,
-      shape:(j.trip.legs||[]).map(l=>l.shape).filter(Boolean),
-      steps:(j.trip.legs||[]).flatMap(l=>l.maneuvers||[])
-        .map(m=>({txt:m.instruction||'',mi:m.length||0,sec:m.time||0}))
-        .filter(m=>m.txt)};
+    const legs=j.trip.legs||[];
+    let coords=[],steps=[];
+    legs.forEach(l=>{
+      const pts=l.shape?poly(l.shape):[];
+      (l.maneuvers||[]).forEach(m=>{
+        if(!m.instruction)return;
+        const p=pts[Math.min(pts.length-1,Math.max(0,m.begin_shape_index||0))];
+        steps.push({txt:m.instruction,mi:m.length||0,sec:m.time||0,type:m.type,
+          lat:p?p[1]:null,lng:p?p[0]:null});
+      });
+      coords=coords.concat(pts);
+    });
+    return{sec:j.trip.summary.time,mi:j.trip.summary.length,coords,steps};
   }finally{clearTimeout(tm)}
 }
 const guess=(f,t,mph)=>{const mi=hav(f.lat,f.lng,t.lat,t.lng)*1.32;
-  return{sec:mi/mph*3600,mi,shape:null,est:true,steps:[]}};
+  return{sec:mi/mph*3600,mi,coords:null,est:true,steps:[]}};
 function poly(s){let i=0,la=0,ln=0,o=[],sh,re,by;
   while(i<s.length){sh=0;re=0;
     do{by=s.charCodeAt(i++)-63;re|=(by&31)<<sh;sh+=5}while(by>=32);
@@ -1321,7 +1520,7 @@ function poly(s){let i=0,la=0,ln=0,o=[],sh,re,by;
     do{by=s.charCodeAt(i++)-63;re|=(by&31)<<sh;sh+=5}while(by>=32);
     ln+=(re&1)?~(re>>1):(re>>1);o.push([ln/1e6,la/1e6])}
   return o}
-const shapeCoords=r=>r.shape&&r.shape.length?r.shape.flatMap(poly):null;
+const shapeCoords=r=>(r&&r.coords&&r.coords.length)?r.coords:null;
 
 /* transit plan: find a shared line between a station near you and one near the destination */
 async function planTransit(f,d){
@@ -1369,20 +1568,21 @@ async function planTransit(f,d){
     total:best.w1+wait+ride+best.w2};
 }
 
-async function plan(){
+async function plan(quiet){
   if(!S.dest||!from()){renderTrip();return}
   const f=from(),d=S.dest;
-  S.busy=true;renderTrip();
+  S.busy=true;if(!quiet)renderTrip();
   const [w,b,c,tr]=await Promise.all([
     valhalla(f,d,'pedestrian').catch(()=>guess(f,d,3.1)),
     valhalla(f,d,'bicycle').catch(()=>guess(f,d,9.5)),
     valhalla(f,d,'auto').catch(()=>guess(f,d,11)),
     planTransit(f,d).catch(()=>null)]);
   S.trip={w,b,c,tr,fare:taxi(c.mi,c.sec/60,f,d),f};
+  S.navCoords=w.coords||null;
   S.busy=false;renderTrip();
-  drawTrip();
+  drawTrip(quiet);
 }
-async function drawTrip(){
+async function drawTrip(quiet){
   const t=S.trip;if(!t||!mapOK)return;
   const f=t.f,d=S.dest,feats=[];
   if(t.tr){
@@ -1399,7 +1599,8 @@ async function drawTrip(){
     if(cw)feats.push(line(cw,'#1A73E8',false));
   }
   drawFeatures(feats);
-  if(S.userMoved){toast('Route drawn — tap ⌖ to fit it on screen');return}
+  if(quiet||S.nav)return;                       // background reroute: don't move the camera
+  if(S.userMoved){toast('Route updated — tap ⌖ to fit it on screen');return}
   fitTrip();
 }
 
@@ -1517,6 +1718,8 @@ function renderTrip(){
     <span class="m"><b>Yellow cab</b><em>${t.fare.tags.length?t.fare.tags.join(' + '):'standard meter'} · before tip</em></span>
     <span class="n"><b>${fm(t.c.sec)}</b><span>$${t.fare.v.toFixed(2)}</span></span></div>`;
 
+  if(t.w&&t.w.steps&&t.w.steps.length>1&&S.origin==='me')
+    h+=`<button class="btn blue" onclick="startNav()">${ico('route','s')}Start walking navigation</button>`;
   h+=stepsCard(t.w,'Walking directions');
   h+=`<button class="btn ghost sm" onclick="saveDest()">${ico('star','s')}Save this place</button>
     <div class="hdr"><h3>Open in another app</h3></div><div class="trio">
@@ -1631,7 +1834,8 @@ g.addEventListener('touchend',()=>{
 Object.assign(window,{locate,goHotel,fetchNearby,setOrigin,clearDest,saveDest,saveHere,
   goSaved,delSaved,addTap,undoTap,hideTip,selectStation,routeToStation,
   focusStation,clearFocus,routeToFocus,toggleCity,fitTrip,
-  toggleLoos,armAlarm,cancelAlarm,goRecent,clearRecents,setDest});
+  toggleLoos,armAlarm,cancelAlarm,goRecent,clearRecents,setDest,
+  startNav,stopNav,openLayers,closeLayers,applyStyle,toggleFilter,toggleLoosFromPanel});
 
 /* ── BOOT ── */
 (async function boot(){
@@ -1641,6 +1845,9 @@ Object.assign(window,{locate,goHotel,fetchNearby,setOrigin,clearDest,saveDest,sa
   S.taps=await get('taps',[]);
   S.tipDone=await get('tipDone',false);
   S.recents=await get('recents',[]);
+  S.filters=await get('filters',{});
+  const sty=await get('style','standard');
+  if(sty!=='standard'&&mapOK)applyStyle(sty); else S.style=sty;
   renderSaved();
   fetchNearby();locate(false);autoCompass();loadAlerts();
   setInterval(loadAlerts,180000);
